@@ -27,3 +27,5 @@ var v1 = app.MapGroup("/api/v1");
 v1.MapSodalisModules();
 
 app.Run();
+
+public partial class Program;
