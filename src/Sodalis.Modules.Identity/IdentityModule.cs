@@ -1,11 +1,17 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using Sodalis.Core;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.AuthProviders;
 using Sodalis.Modules.Identity.Features.Login;
+using Sodalis.Modules.Identity.Features.Logout;
+using Sodalis.Modules.Identity.Features.Me;
+using Sodalis.Modules.Identity.Features.Refresh;
 using Sodalis.Modules.Identity.Persistence;
 
 namespace Sodalis.Modules.Identity;
@@ -17,7 +23,6 @@ public sealed class IdentityModule : IModule
 
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
-        // DbContext
         var connectionString = configuration.GetConnectionString("Sodalis")
             ?? throw new InvalidOperationException("ConnectionStrings:Sodalis is not configured.");
 
@@ -27,20 +32,25 @@ public sealed class IdentityModule : IModule
                 .MigrationsAssembly(typeof(IdentityDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention());
 
-        // JWT
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        services.Configure<RefreshTokenSettings>(configuration.GetSection(RefreshTokenSettings.SectionName));
         services.AddSingleton<JwtIssuer>();
+        services.AddScoped<RefreshTokenService>();
 
-        // Auth providers
         services.AddSingleton<IAuthProvider, AnonymousAuthProvider>();
 
-        // Feature handlers
         services.AddScoped<LoginHandler>();
+        services.AddScoped<RefreshHandler>();
+
+        ConfigureJwtAuthentication(services, configuration);
     }
 
     public void MapEndpoints(IEndpointRouteBuilder routes)
     {
         LoginEndpoint.Map(routes);
+        RefreshEndpoint.Map(routes);
+        LogoutEndpoint.Map(routes);
+        MeEndpoint.Map(routes);
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct = default)
@@ -48,5 +58,38 @@ public sealed class IdentityModule : IModule
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         await db.Database.MigrateAsync(ct);
+    }
+
+    private static void ConfigureJwtAuthentication(IServiceCollection services, IConfiguration configuration)
+    {
+        var jwt = configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
+            ?? throw new InvalidOperationException($"JWT settings missing at '{JwtSettings.SectionName}'.");
+
+        if (string.IsNullOrWhiteSpace(jwt.SigningKey))
+            throw new InvalidOperationException("JWT SigningKey is not configured.");
+
+        var keyBytes = Encoding.UTF8.GetBytes(jwt.SigningKey);
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(opts =>
+            {
+                // Do NOT map short JWT claims (sub, aud, ...) to legacy SOAP URIs.
+                // We want User.FindFirstValue("sub") to return the actual "sub" claim.
+                opts.MapInboundClaims = false;
+
+                opts.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidIssuer = jwt.Issuer,
+                    ValidAudience = jwt.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ClockSkew = TimeSpan.FromSeconds(30)
+                };
+            });
+
+        services.AddAuthorization();
     }
 }

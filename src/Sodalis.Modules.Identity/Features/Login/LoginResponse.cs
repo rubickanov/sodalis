@@ -3,6 +3,8 @@ namespace Sodalis.Modules.Identity.Features.Login;
 public sealed record LoginResponse(
     string AccessToken,
     int ExpiresIn,
+    string RefreshToken,
+    int RefreshTokenExpiresIn,
     string TokenType,
     PlayerInfo Player);
 

@@ -9,28 +9,35 @@ namespace Sodalis.Modules.Identity.Features.Login;
 public sealed class LoginHandler(
     IdentityDbContext db,
     IEnumerable<IAuthProvider> providers,
-    JwtIssuer jwtIssuer)
+    JwtIssuer jwtIssuer,
+    RefreshTokenService refreshTokens)
 {
-    public async Task<LoginResult> HandleAsync(LoginRequest request, Guid gameId, CancellationToken ct)
+    public async Task<LoginResult> HandleAsync(
+        LoginRequest request,
+        Guid gameId,
+        string? userAgent,
+        string? ipAddress,
+        CancellationToken ct)
     {
-        // 1. Find provider
         var provider = providers.FirstOrDefault(p => p.ProviderId == request.Provider);
         if (provider is null)
+        {
             return LoginResult.Failed($"Unknown auth provider '{request.Provider}'.");
+        }
 
-        // 2. Authenticate via provider
         var auth = await provider.AuthenticateAsync(
             new AuthRequest(request.Provider, request.Payload, gameId), ct);
 
         if (!auth.Success || auth.ExternalId is null)
+        {
             return LoginResult.Failed(auth.FailureReason ?? "Authentication failed.");
+        }
 
-        // 3. Find existing external_identity or create a new player
         var existing = await db.ExternalIdentities
             .FirstOrDefaultAsync(
                 ei => ei.GameId == gameId
-                    && ei.ProviderId == request.Provider
-                    && ei.ExternalId == auth.ExternalId,
+                      && ei.ProviderId == request.Provider
+                      && ei.ExternalId == auth.ExternalId,
                 ct);
 
         Player player;
@@ -70,17 +77,21 @@ public sealed class LoginHandler(
 
         await db.SaveChangesAsync(ct);
 
-        // 4. Reject if player is banned
         if (player.IsBanned)
+        {
             return LoginResult.Failed("Account is banned.");
+        }
 
-        // 5. Issue JWT
         var linkedProviders = player.ExternalIdentities.Select(ei => ei.ProviderId).ToList();
-        var token = jwtIssuer.Issue(player.PlayerId, gameId, linkedProviders);
+        var accessToken = jwtIssuer.Issue(player.PlayerId, gameId, linkedProviders);
+        var refresh = await refreshTokens.IssueAsync(player.PlayerId, gameId, userAgent, ipAddress, ct);
 
+        var now2 = DateTimeOffset.UtcNow;
         var response = new LoginResponse(
-            AccessToken: token.Value,
-            ExpiresIn: (int)(token.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds,
+            AccessToken: accessToken.Value,
+            ExpiresIn: (int)(accessToken.ExpiresAt - now2).TotalSeconds,
+            RefreshToken: refresh.RawToken,
+            RefreshTokenExpiresIn: (int)(refresh.ExpiresAt - now2).TotalSeconds,
             TokenType: "Bearer",
             Player: new PlayerInfo(player.PlayerId, isNew, linkedProviders));
 

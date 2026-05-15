@@ -18,6 +18,9 @@ if (app.Environment.IsDevelopment())
 
 await app.ApplySodalisMigrationsAsync();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapGet("/health", () => Results.Ok("Healthy"));
 
 var v1 = app.MapGroup("/api/v1");

@@ -9,6 +9,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<Player> Players => Set<Player>();
     public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +34,22 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             e.HasIndex(ei => new { ei.GameId, ei.ProviderId, ei.ExternalId }).IsUnique();
 
             e.Property(ei => ei.Metadata).HasColumnType("jsonb");
+        });
+
+        modelBuilder.Entity<RefreshToken>(e =>
+        {
+            e.HasKey(rt => rt.TokenHash);
+
+            // For "logout-all" and per-player session listing
+            e.HasIndex(rt => new { rt.PlayerId, rt.GameId });
+
+            // For background cleanup of expired tokens
+            e.HasIndex(rt => rt.ExpiresAt);
+
+            e.Property(rt => rt.TokenHash).HasMaxLength(128);
+            e.Property(rt => rt.ReplacedByHash).HasMaxLength(128);
+            e.Property(rt => rt.UserAgent).HasMaxLength(512);
+            e.Property(rt => rt.IpAddress).HasMaxLength(64);
         });
     }
 }

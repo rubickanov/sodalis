@@ -11,7 +11,10 @@ public sealed class JwtIssuer(IOptions<JwtSettings> options)
     private readonly JwtSettings _settings = options.Value;
     private readonly JsonWebTokenHandler _handler = new();
 
-    public IssuedToken Issue(Guid playerId, Guid gameId, IReadOnlyCollection<string> linkedProviders)
+    public IssuedToken Issue(
+        Guid playerId,
+        Guid gameId,
+        IReadOnlyCollection<string> linkedProviders)
     {
         if (string.IsNullOrWhiteSpace(_settings.SigningKey))
             throw new InvalidOperationException("JWT SigningKey is not configured.");
