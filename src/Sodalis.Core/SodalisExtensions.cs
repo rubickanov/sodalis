@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -32,14 +33,23 @@ public static class SodalisExtensions
         return services;
     }
 
-    public static WebApplication MapSodalisModules(this WebApplication app)
+    public static IEndpointRouteBuilder MapSodalisModules(this IEndpointRouteBuilder routes)
+    {
+        var registry = routes.ServiceProvider.GetRequiredService<ModuleRegistry>();
+        foreach (IModule module in registry.Modules)
+        {
+            module.MapEndpoints(routes);
+        }
+
+        return routes;
+    }
+
+    public static async Task ApplySodalisMigrationsAsync(this WebApplication app, CancellationToken ct = default)
     {
         var registry = app.Services.GetRequiredService<ModuleRegistry>();
         foreach (IModule module in registry.Modules)
         {
-            module.MapEndpoints(app);
+            await module.ApplyMigrationsAsync(app.Services, ct);
         }
-
-        return app;
     }
 }

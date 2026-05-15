@@ -2,5 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/Sodalis.Core/Sodalis.Core.csproj" />
     <Project Path="src/Sodalis.Host/Sodalis.Host.csproj" />
+    <Project Path="src/Sodalis.Modules.Identity/Sodalis.Modules.Identity.csproj" />
   </Folder>
 </Solution>

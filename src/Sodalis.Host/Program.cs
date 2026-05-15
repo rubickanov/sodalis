@@ -1,12 +1,26 @@
+using Scalar.AspNetCore;
 using Sodalis.Core;
+using Sodalis.Modules.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSodalisCore(out ModuleRegistry moduleRegistry);
 
+builder.Services.AddOpenApi();
+builder.Services.AddSodalisCore(out ModuleRegistry moduleRegistry);
+builder.Services.AddSodalisModule<IdentityModule>(moduleRegistry, builder.Configuration);
 
 var app = builder.Build();
 
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
+await app.ApplySodalisMigrationsAsync();
+
 app.MapGet("/health", () => Results.Ok("Healthy"));
-app.MapSodalisModules();
+
+var v1 = app.MapGroup("/api/v1");
+v1.MapSodalisModules();
 
 app.Run();

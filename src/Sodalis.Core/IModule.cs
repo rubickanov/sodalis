@@ -11,4 +11,6 @@ public interface IModule
 
     void RegisterServices(IServiceCollection services, IConfiguration configuration);
     void MapEndpoints(IEndpointRouteBuilder routes);
+
+    Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct = default) => Task.CompletedTask;
 }
