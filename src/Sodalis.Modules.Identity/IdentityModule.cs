@@ -1,4 +1,5 @@
 using System.Text;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ using Sodalis.Modules.Identity.Features.Login;
 using Sodalis.Modules.Identity.Features.Logout;
 using Sodalis.Modules.Identity.Features.Me;
 using Sodalis.Modules.Identity.Features.Refresh;
+using Sodalis.Modules.Identity.Features.Register;
 using Sodalis.Modules.Identity.Persistence;
 
 namespace Sodalis.Modules.Identity;
@@ -35,12 +37,17 @@ public sealed class IdentityModule : IModule
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         services.Configure<RefreshTokenSettings>(configuration.GetSection(RefreshTokenSettings.SectionName));
         services.AddSingleton<JwtIssuer>();
+        services.AddSingleton<PasswordHasher>();
         services.AddScoped<RefreshTokenService>();
 
         services.AddSingleton<IAuthProvider, AnonymousAuthProvider>();
+        services.AddScoped<IAuthProvider, EmailPasswordAuthProvider>();
 
         services.AddScoped<LoginHandler>();
         services.AddScoped<RefreshHandler>();
+        services.AddScoped<RegisterHandler>();
+
+        services.AddValidatorsFromAssemblyContaining<IdentityModule>(ServiceLifetime.Singleton);
 
         ConfigureJwtAuthentication(services, configuration);
     }
@@ -48,6 +55,7 @@ public sealed class IdentityModule : IModule
     public void MapEndpoints(IEndpointRouteBuilder routes)
     {
         LoginEndpoint.Map(routes);
+        RegisterEndpoint.Map(routes);
         RefreshEndpoint.Map(routes);
         LogoutEndpoint.Map(routes);
         MeEndpoint.Map(routes);

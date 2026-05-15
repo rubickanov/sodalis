@@ -4,4 +4,8 @@
     <Project Path="src/Sodalis.Host/Sodalis.Host.csproj" />
     <Project Path="src/Sodalis.Modules.Identity/Sodalis.Modules.Identity.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sodalis.IntegrationTests/Sodalis.IntegrationTests.csproj" />
+    <Project Path="tests/Sodalis.Modules.Identity.UnitTests/Sodalis.Modules.Identity.UnitTests.csproj" />
+  </Folder>
 </Solution>

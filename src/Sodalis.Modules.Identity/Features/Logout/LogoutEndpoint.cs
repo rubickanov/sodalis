@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Sodalis.Core;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.Features.Login;
 
@@ -10,7 +11,8 @@ public static class LogoutEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/logout", HandleAsync);
+        routes.MapPost("/auth/logout", HandleAsync)
+            .WithValidation<LogoutRequest>();
     }
 
     private static async Task<IResult> HandleAsync(

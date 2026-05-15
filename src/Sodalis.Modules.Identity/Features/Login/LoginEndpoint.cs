@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Sodalis.Core;
 
 namespace Sodalis.Modules.Identity.Features.Login;
 
@@ -8,7 +9,8 @@ public static class LoginEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/login", HandleAsync);
+        routes.MapPost("/auth/login", HandleAsync)
+            .WithValidation<LoginRequest>();
     }
 
     private static async Task<IResult> HandleAsync(

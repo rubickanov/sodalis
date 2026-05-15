@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Sodalis.Core;
 using Sodalis.Modules.Identity.Features.Login;
 
 namespace Sodalis.Modules.Identity.Features.Refresh;
@@ -9,7 +10,8 @@ public static class RefreshEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/refresh", HandleAsync);
+        routes.MapPost("/auth/refresh", HandleAsync)
+            .WithValidation<RefreshRequest>();
     }
 
     private static async Task<IResult> HandleAsync(
