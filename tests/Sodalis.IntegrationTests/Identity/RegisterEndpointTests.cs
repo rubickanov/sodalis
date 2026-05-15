@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Sodalis.IntegrationTests.Infrastructure;
@@ -24,24 +24,23 @@ public class RegisterEndpointTests(SodalisFixture fixture)
             password = "supersecret123"
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadFromJsonAsync<LoginLikeResponse>();
-        body.Should().NotBeNull();
-        body!.AccessToken.Should().NotBeNullOrEmpty();
-        body.RefreshToken.Should().NotBeNullOrEmpty();
-        body.Player.IsNew.Should().BeTrue();
-        body.Player.LinkedProviders.Should().Contain("email");
+        var body = (await response.Content.ReadFromJsonAsync<LoginLikeResponse>()).ShouldNotBeNull();
+        body.AccessToken.ShouldNotBeNullOrEmpty();
+        body.RefreshToken.ShouldNotBeNullOrEmpty();
+        body.Player.IsNew.ShouldBeTrue();
+        body.Player.LinkedProviders.ShouldContain("email");
 
         using var scope = fixture.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var identity = await db.ExternalIdentities
-            .FirstOrDefaultAsync(ei => ei.GameId == gameId && ei.ProviderId == "email" && ei.ExternalId == email);
+        var identity = (await db.ExternalIdentities
+            .FirstOrDefaultAsync(ei => ei.GameId == gameId && ei.ProviderId == "email" && ei.ExternalId == email))
+            .ShouldNotBeNull();
 
-        identity.Should().NotBeNull();
-        identity!.Metadata.Should().NotBeNull();
-        identity.Metadata.Should().Contain("$argon2id$", "password must be hashed, not stored as plaintext");
-        identity.Metadata.Should().NotContain("supersecret123", "plaintext password must never appear in metadata");
+        var metadata = identity.Metadata.ShouldNotBeNull();
+        metadata.ShouldContain("$argon2id$", customMessage: "password must be hashed, not stored as plaintext");
+        metadata.ShouldNotContain("supersecret123", customMessage: "plaintext password must never appear in metadata");
     }
 
     [Fact]
@@ -52,10 +51,10 @@ public class RegisterEndpointTests(SodalisFixture fixture)
         var email = $"u{Guid.NewGuid():N}@test.local";
 
         var first = await client.PostAsJsonAsync("/api/v1/auth/register", new { email, password = "validpass1" });
-        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var second = await client.PostAsJsonAsync("/api/v1/auth/register", new { email, password = "validpass1" });
-        second.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        second.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -69,10 +68,9 @@ public class RegisterEndpointTests(SodalisFixture fixture)
             password = "validpass123"
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
-        var problem = await response.Content.ReadFromJsonAsync<ValidationProblem>();
-        problem.Should().NotBeNull();
-        problem!.Errors.Should().ContainKey("Email");
+        var problem = (await response.Content.ReadFromJsonAsync<ValidationProblem>()).ShouldNotBeNull();
+        problem.Errors.ShouldContainKey("Email");
     }
 }

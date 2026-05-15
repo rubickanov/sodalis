@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using FluentAssertions;
+using Shouldly;
 using Sodalis.IntegrationTests.Infrastructure;
 
 namespace Sodalis.IntegrationTests.Identity;
@@ -17,12 +17,12 @@ public class MultiTenancyTests(SodalisFixture fixture)
         var gameB = fixture.CreateClient(Guid.NewGuid());
 
         var inA = (await (await gameA.PostAsJsonAsync("/api/v1/auth/register", new { email, password }))
-            .Content.ReadFromJsonAsync<LoginLikeResponse>())!;
+            .Content.ReadFromJsonAsync<LoginLikeResponse>()).ShouldNotBeNull();
 
         var inB = (await (await gameB.PostAsJsonAsync("/api/v1/auth/register", new { email, password }))
-            .Content.ReadFromJsonAsync<LoginLikeResponse>())!;
+            .Content.ReadFromJsonAsync<LoginLikeResponse>()).ShouldNotBeNull();
 
-        inA.Player.PlayerId.Should().NotBe(inB.Player.PlayerId,
+        inA.Player.PlayerId.ShouldNotBe(inB.Player.PlayerId,
             "the same email in two different games must resolve to two distinct players");
     }
 }

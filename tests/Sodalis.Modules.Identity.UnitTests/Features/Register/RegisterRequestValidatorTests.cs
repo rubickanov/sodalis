@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using Sodalis.Modules.Identity.Features.Register;
 
 namespace Sodalis.Modules.Identity.UnitTests.Features.Register;
@@ -12,7 +12,7 @@ public class RegisterRequestValidatorTests
     {
         var result = _validator.Validate(new RegisterRequest("vasya@example.com", "validpass123"));
 
-        result.IsValid.Should().BeTrue();
+        result.IsValid.ShouldBeTrue();
     }
 
     [Theory]
@@ -23,8 +23,8 @@ public class RegisterRequestValidatorTests
     {
         var result = _validator.Validate(new RegisterRequest(email, "validpass123"));
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterRequest.Email));
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RegisterRequest.Email));
     }
 
     [Theory]
@@ -34,8 +34,8 @@ public class RegisterRequestValidatorTests
     {
         var result = _validator.Validate(new RegisterRequest("vasya@example.com", password));
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterRequest.Password));
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RegisterRequest.Password));
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class RegisterRequestValidatorTests
     {
         var result = _validator.Validate(new RegisterRequest("vasya@example.com", new string('a', 300)));
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterRequest.Password));
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RegisterRequest.Password));
     }
 
     [Fact]
@@ -52,8 +52,8 @@ public class RegisterRequestValidatorTests
     {
         var result = _validator.Validate(new RegisterRequest("bad-email", "x"));
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterRequest.Email));
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(RegisterRequest.Password));
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RegisterRequest.Email));
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(RegisterRequest.Password));
     }
 }

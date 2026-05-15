@@ -49,38 +49,60 @@ public sealed class RefreshTokenService(
         CancellationToken ct)
     {
         var hash = HashToken(rawToken);
-        var row = await db.RefreshTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == hash && t.GameId == gameId, ct);
-
-        if (row is null)
-            return RotateResult.Invalid("Unknown refresh token.");
-
-        // Reuse detection: token was already used (rotated) or revoked.
-        // Treat both as session compromise — kill the entire chain.
-        if (row.ReplacedByHash is not null || row.RevokedAt is not null)
-        {
-            await RevokeChainAsync(row, ct);
-            return RotateResult.Reused("Refresh token reuse detected; session revoked.");
-        }
-
         var now = DateTimeOffset.UtcNow;
-        if (row.ExpiresAt < now)
-            return RotateResult.Invalid("Refresh token expired.");
-
-        // Rotate: mark old as replaced, issue new.
         var newRaw = GenerateRawToken();
         var newHash = HashToken(newRaw);
         var newExpires = now.AddDays(_settings.LifetimeDays);
 
-        row.LastUsedAt = now;
-        row.RevokedAt = now;
-        row.ReplacedByHash = newHash;
+        // Atomic claim: mark this token as rotated only if it's still pristine.
+        // The WHERE predicate is the lock — Postgres serializes concurrent UPDATEs
+        // on the same row, so exactly one caller sees rowsAffected == 1.
+        // Without this, two concurrent refreshes could both succeed and reuse
+        // detection would be silently bypassed.
+        var rowsAffected = await db.RefreshTokens
+            .Where(t => t.TokenHash == hash
+                        && t.GameId == gameId
+                        && t.RevokedAt == null
+                        && t.ReplacedByHash == null
+                        && t.ExpiresAt > now)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.RevokedAt, now)
+                .SetProperty(t => t.ReplacedByHash, newHash)
+                .SetProperty(t => t.LastUsedAt, now), ct);
+
+        if (rowsAffected == 0)
+        {
+            // Re-read to disambiguate why we didn't claim the row.
+            var existing = await db.RefreshTokens
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.TokenHash == hash && t.GameId == gameId, ct);
+
+            if (existing is null)
+            {
+                return RotateResult.Invalid("Unknown refresh token.");
+            }
+
+            if (existing.ReplacedByHash is not null || existing.RevokedAt is not null)
+            {
+                await RevokeChainAsync(existing, ct);
+                return RotateResult.Reused("Refresh token reuse detected; session revoked.");
+            }
+
+            return RotateResult.Invalid("Refresh token expired.");
+        }
+
+        // We won the race; fetch PlayerId to attach the new token.
+        var playerId = await db.RefreshTokens
+            .AsNoTracking()
+            .Where(t => t.TokenHash == hash)
+            .Select(t => t.PlayerId)
+            .FirstAsync(ct);
 
         db.RefreshTokens.Add(new RefreshToken
         {
             TokenHash = newHash,
-            PlayerId = row.PlayerId,
-            GameId = row.GameId,
+            PlayerId = playerId,
+            GameId = gameId,
             IssuedAt = now,
             ExpiresAt = newExpires,
             UserAgent = userAgent,
@@ -88,7 +110,7 @@ public sealed class RefreshTokenService(
         });
 
         await db.SaveChangesAsync(ct);
-        return RotateResult.Ok(row.PlayerId, newRaw, newExpires);
+        return RotateResult.Ok(playerId, newRaw, newExpires);
     }
 
     public async Task<bool> RevokeAsync(string rawToken, Guid gameId, CancellationToken ct)

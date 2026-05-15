@@ -13,6 +13,11 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // TODO: Add HasQueryFilter on every entity (Player, ExternalIdentity, RefreshToken)
+        // for tenant isolation defense-in-depth. Requires an injected IGameContext
+        // (scoped service that resolves the current GameId from the request).
+        // we promises this; current code relies on developer discipline only.
+
         modelBuilder.HasDefaultSchema(SchemaName);
 
         modelBuilder.Entity<Player>(e =>
