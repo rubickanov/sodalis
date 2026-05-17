@@ -11,8 +11,12 @@ public static class LogoutEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/logout", HandleAsync)
-            .WithValidation<LogoutRequest>();
+        routes.MapPost("/logout", HandleAsync)
+            .WithValidation<LogoutRequest>()
+            .WithName("Logout")
+            .WithSummary("Revoke a refresh token.")
+            .WithDescription("Revokes the supplied refresh token. Always returns 204 regardless of whether the token existed (anti-enumeration).")
+            .Produces(StatusCodes.Status204NoContent);
     }
 
     private static async Task<IResult> HandleAsync(

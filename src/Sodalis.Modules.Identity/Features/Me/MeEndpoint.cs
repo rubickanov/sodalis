@@ -10,8 +10,13 @@ public static class MeEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapGet("/auth/me", Handle)
-            .RequireAuthorization();
+        routes.MapGet("/me", Handle)
+            .RequireAuthorization()
+            .WithName("Me")
+            .WithSummary("Get the authenticated player's identity claims.")
+            .WithDescription("Returns the player id, game id, and linked auth providers parsed from the access token.")
+            .Produces<MeResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized);
     }
 
     private static IResult Handle(ClaimsPrincipal user)

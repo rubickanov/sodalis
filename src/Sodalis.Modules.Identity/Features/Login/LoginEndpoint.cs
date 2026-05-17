@@ -9,8 +9,13 @@ public static class LoginEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/login", HandleAsync)
-            .WithValidation<LoginRequest>();
+        routes.MapPost("/login", HandleAsync)
+            .WithValidation<LoginRequest>()
+            .WithName("Login")
+            .WithSummary("Authenticate via auth provider.")
+            .WithDescription("Authenticates an existing player or creates a new one using the specified provider (anonymous, email, ...). Returns access + refresh tokens.")
+            .Produces<LoginResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized);
     }
 
     private static async Task<IResult> HandleAsync(

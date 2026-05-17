@@ -3,21 +3,37 @@
   <ItemGroup>
     <ProjectReference Include="..\Sodalis.Core\Sodalis.Core.csproj" />
     <ProjectReference Include="..\Sodalis.Modules.Identity\Sodalis.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Sodalis.Modules.Profile\Sodalis.Modules.Profile.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Scalar.AspNetCore" Version="2.14.11" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
   </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version>0.1.0</Version>
   </PropertyGroup>
+
+  <Target Name="StampGitSha" BeforeTargets="GetAssemblyVersion">
+    <Exec Command="git rev-parse --short HEAD"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          ContinueOnError="true">
+      <Output PropertyName="GitShaOutput" TaskParameter="ConsoleOutput" />
+    </Exec>
+    <PropertyGroup>
+      <SourceRevisionId Condition="'$(GitShaOutput)' != ''">$(GitShaOutput)</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
 
 </Project>

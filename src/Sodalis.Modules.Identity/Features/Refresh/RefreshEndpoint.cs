@@ -10,8 +10,13 @@ public static class RefreshEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/refresh", HandleAsync)
-            .WithValidation<RefreshRequest>();
+        routes.MapPost("/refresh", HandleAsync)
+            .WithValidation<RefreshRequest>()
+            .WithName("Refresh")
+            .WithSummary("Rotate refresh token, issue a new access token.")
+            .WithDescription("Validates the refresh token, rotates it atomically (reuse detection revokes the entire chain), and returns fresh access + refresh tokens.")
+            .Produces<Login.LoginResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized);
     }
 
     private static async Task<IResult> HandleAsync(

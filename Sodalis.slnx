@@ -3,9 +3,11 @@
     <Project Path="src/Sodalis.Core/Sodalis.Core.csproj" />
     <Project Path="src/Sodalis.Host/Sodalis.Host.csproj" />
     <Project Path="src/Sodalis.Modules.Identity/Sodalis.Modules.Identity.csproj" />
+    <Project Path="src/Sodalis.Modules.Profile/Sodalis.Modules.Profile.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sodalis.IntegrationTests/Sodalis.IntegrationTests.csproj" />
     <Project Path="tests/Sodalis.Modules.Identity.UnitTests/Sodalis.Modules.Identity.UnitTests.csproj" />
+    <Project Path="tests/Sodalis.Modules.Profile.UnitTests/Sodalis.Modules.Profile.UnitTests.csproj" />
   </Folder>
 </Solution>

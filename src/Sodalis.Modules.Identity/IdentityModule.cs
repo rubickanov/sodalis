@@ -1,6 +1,8 @@
 using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -54,11 +56,13 @@ public sealed class IdentityModule : IModule
 
     public void MapEndpoints(IEndpointRouteBuilder routes)
     {
-        LoginEndpoint.Map(routes);
-        RegisterEndpoint.Map(routes);
-        RefreshEndpoint.Map(routes);
-        LogoutEndpoint.Map(routes);
-        MeEndpoint.Map(routes);
+        var auth = routes.MapGroup("/auth").WithTags("Auth");
+
+        LoginEndpoint.Map(auth);
+        RegisterEndpoint.Map(auth);
+        RefreshEndpoint.Map(auth);
+        LogoutEndpoint.Map(auth);
+        MeEndpoint.Map(auth);
     }
 
     public async Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct = default)

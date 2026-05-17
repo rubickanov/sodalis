@@ -10,8 +10,14 @@ public static class RegisterEndpoint
 {
     public static void Map(IEndpointRouteBuilder routes)
     {
-        routes.MapPost("/auth/register", HandleAsync)
-            .WithValidation<RegisterRequest>();
+        routes.MapPost("/register", HandleAsync)
+            .WithValidation<RegisterRequest>()
+            .WithName("Register")
+            .WithSummary("Register a new email/password player.")
+            .WithDescription("Creates a new player with the email auth provider, hashes the password, and returns access + refresh tokens.")
+            .Produces<LoginResponse>()
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
     }
 
     private static async Task<IResult> HandleAsync(
