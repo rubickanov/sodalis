@@ -13,8 +13,8 @@ public class MultiTenancyTests(SodalisFixture fixture)
         var email = $"u{Guid.NewGuid():N}@test.local";
         var password = "validpass123";
 
-        var gameA = fixture.CreateClient(Guid.NewGuid());
-        var gameB = fixture.CreateClient(Guid.NewGuid());
+        var gameA = fixture.CreateClient(fixture.GameAId);
+        var gameB = fixture.CreateClient(fixture.GameBId);
 
         var inA = (await (await gameA.PostAsJsonAsync("/api/v1/auth/register", new { email, password }))
             .Content.ReadFromJsonAsync<LoginLikeResponse>()).ShouldNotBeNull();

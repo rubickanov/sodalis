@@ -2,7 +2,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.IdentityModel.JsonWebTokens;
+using Sodalis.Core;
+using Sodalis.Modules.Identity.Features.Login;
 
 namespace Sodalis.Modules.Identity.Features.Me;
 
@@ -19,24 +20,19 @@ public static class MeEndpoint
             .ProducesProblem(StatusCodes.Status401Unauthorized);
     }
 
-    private static IResult Handle(ClaimsPrincipal user)
+    private static IResult Handle(ClaimsPrincipal user, IGameContext gameContext)
     {
-        var sub = user.FindFirstValue(JwtRegisteredClaimNames.Sub);
-        var gid = user.FindFirstValue("gid");
-        var auth = user.FindFirstValue("auth");
-
-        if (sub is null || gid is null
-            || !Guid.TryParse(sub, out var playerId)
-            || !Guid.TryParse(gid, out var gameId))
+        if (!RequestContext.TryResolvePlayer(user, gameContext, out var playerId))
         {
             return Results.Problem("Malformed token.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
+        var auth = user.FindFirstValue("auth");
         var providers = string.IsNullOrEmpty(auth)
             ? Array.Empty<string>()
             : auth.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
-        return Results.Ok(new MeResponse(playerId, gameId, providers));
+        return Results.Ok(new MeResponse(playerId, gameContext.GameId, providers));
     }
 }
 

@@ -14,7 +14,7 @@ public class RegisterEndpointTests(SodalisFixture fixture)
     [Fact]
     public async Task Register_WithValidInput_ReturnsTokensAndCreatesPlayer()
     {
-        var gameId = Guid.NewGuid();
+        var gameId = fixture.GameAId;
         var client = fixture.CreateClient(gameId);
         var email = $"u{Guid.NewGuid():N}@test.local";
 
@@ -34,7 +34,10 @@ public class RegisterEndpointTests(SodalisFixture fixture)
 
         using var scope = fixture.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        // IgnoreQueryFilters: this scope has no IGameContext set, but we already
+        // scope the query by `ei.GameId == gameId` ourselves.
         var identity = (await db.ExternalIdentities
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(ei => ei.GameId == gameId && ei.ProviderId == "email" && ei.ExternalId == email))
             .ShouldNotBeNull();
 
@@ -46,7 +49,7 @@ public class RegisterEndpointTests(SodalisFixture fixture)
     [Fact]
     public async Task Register_WithDuplicateEmail_Returns400()
     {
-        var gameId = Guid.NewGuid();
+        var gameId = fixture.GameAId;
         var client = fixture.CreateClient(gameId);
         var email = $"u{Guid.NewGuid():N}@test.local";
 

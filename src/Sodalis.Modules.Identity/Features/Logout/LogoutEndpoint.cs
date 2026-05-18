@@ -22,11 +22,10 @@ public static class LogoutEndpoint
     private static async Task<IResult> HandleAsync(
         LogoutRequest request,
         RefreshTokenService refreshTokens,
-        HttpContext http,
+        IGameContext gameContext,
         CancellationToken ct)
     {
-        var gameId = RequestContext.ResolveGameId(http);
-        await refreshTokens.RevokeAsync(request.RefreshToken, gameId, ct);
+        await refreshTokens.RevokeAsync(request.RefreshToken, gameContext.GameId, ct);
 
         // Always 204 — never reveal whether the token existed (timing-attack mitigation).
         return Results.NoContent();

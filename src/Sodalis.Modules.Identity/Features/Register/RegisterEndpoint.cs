@@ -23,14 +23,14 @@ public static class RegisterEndpoint
     private static async Task<IResult> HandleAsync(
         RegisterRequest request,
         RegisterHandler handler,
+        IGameContext gameContext,
         HttpContext http,
         CancellationToken ct)
     {
-        var gameId = RequestContext.ResolveGameId(http);
         var userAgent = RequestContext.UserAgent(http);
         var ipAddress = RequestContext.IpAddress(http);
 
-        var result = await handler.HandleAsync(request, gameId, userAgent, ipAddress, ct);
+        var result = await handler.HandleAsync(request, gameContext.GameId, userAgent, ipAddress, ct);
 
         return result.Success
             ? Results.Ok(result.Response)

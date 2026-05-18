@@ -94,7 +94,7 @@ public class ProfileEndpointTests(SodalisFixture fixture)
     [Fact]
     public async Task GetById_SameGame_ReturnsProfile()
     {
-        var gameId = Guid.NewGuid();
+        var gameId = fixture.GameAId;
         var (clientA, playerIdA) = await fixture.CreateAnonymousAsync(gameId);
         await clientA.PatchAsJsonAsync("/api/v1/profile/me", new { displayName = "Alice" });
 
@@ -110,10 +110,10 @@ public class ProfileEndpointTests(SodalisFixture fixture)
     [Fact]
     public async Task GetById_DifferentGame_Returns404()
     {
-        var (clientGameA, playerIdInGameA) = await fixture.CreateAnonymousAsync(Guid.NewGuid());
+        var (clientGameA, playerIdInGameA) = await fixture.CreateAnonymousAsync(fixture.GameAId);
         await clientGameA.GetAsync("/api/v1/profile/me");
 
-        var (clientGameB, _) = await fixture.CreateAnonymousAsync(Guid.NewGuid());
+        var (clientGameB, _) = await fixture.CreateAnonymousAsync(fixture.GameBId);
         var response = await clientGameB.GetAsync($"/api/v1/profile/{playerIdInGameA}");
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);

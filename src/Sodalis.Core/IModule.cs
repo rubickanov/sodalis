@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,8 @@ public interface IModule
 
     void RegisterServices(IServiceCollection services, IConfiguration configuration);
     void MapEndpoints(IEndpointRouteBuilder routes);
+
+    void ConfigureMiddleware(IApplicationBuilder app) { }
 
     Task ApplyMigrationsAsync(IServiceProvider services, CancellationToken ct = default) => Task.CompletedTask;
 }

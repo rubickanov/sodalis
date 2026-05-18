@@ -21,14 +21,15 @@ public static class GetMyProfileEndpoint
     private static async Task<IResult> HandleAsync(
         ClaimsPrincipal user,
         GetMyProfileHandler handler,
+        Sodalis.Core.IGameContext gameContext,
         CancellationToken ct)
     {
-        if (!RequestContext.TryResolvePlayerAndGame(user, out var playerId, out var gameId))
+        if (!RequestContext.TryResolvePlayer(user, gameContext, out var playerId))
         {
             return Results.Problem("Malformed token.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        var response = await handler.HandleAsync(playerId, gameId, ct);
+        var response = await handler.HandleAsync(playerId, gameContext.GameId, ct);
         return Results.Ok(response);
     }
 }

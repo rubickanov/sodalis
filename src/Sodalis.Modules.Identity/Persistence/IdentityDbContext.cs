@@ -1,23 +1,25 @@
 using Microsoft.EntityFrameworkCore;
+using Sodalis.Core;
 using Sodalis.Modules.Identity.Domain;
 
 namespace Sodalis.Modules.Identity.Persistence;
 
-public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : DbContext(options)
+public sealed class IdentityDbContext(
+    DbContextOptions<IdentityDbContext> options,
+    IGameContext gameContext) : DbContext(options)
 {
     public const string SchemaName = "identity";
+
+    private readonly IGameContext _gameContext = gameContext;
 
     public DbSet<Player> Players => Set<Player>();
     public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // TODO: Add HasQueryFilter on every entity (Player, ExternalIdentity, RefreshToken)
-        // for tenant isolation defense-in-depth. Requires an injected IGameContext
-        // (scoped service that resolves the current GameId from the request).
-        // we promises this; current code relies on developer discipline only.
-
         modelBuilder.HasDefaultSchema(SchemaName);
 
         modelBuilder.Entity<Player>(e =>
@@ -29,6 +31,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                 .WithOne()
                 .HasForeignKey(ei => ei.PlayerId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasQueryFilter(p => p.GameId == _gameContext.GameId);
         });
 
         modelBuilder.Entity<ExternalIdentity>(e =>
@@ -39,6 +43,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             e.HasIndex(ei => new { ei.GameId, ei.ProviderId, ei.ExternalId }).IsUnique();
 
             e.Property(ei => ei.Metadata).HasColumnType("jsonb");
+
+            e.HasQueryFilter(ei => ei.GameId == _gameContext.GameId);
         });
 
         modelBuilder.Entity<RefreshToken>(e =>
@@ -55,6 +61,30 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             e.Property(rt => rt.ReplacedByHash).HasMaxLength(128);
             e.Property(rt => rt.UserAgent).HasMaxLength(512);
             e.Property(rt => rt.IpAddress).HasMaxLength(64);
+
+            e.HasQueryFilter(rt => rt.GameId == _gameContext.GameId);
+        });
+
+        modelBuilder.Entity<EmailVerificationToken>(e =>
+        {
+            e.HasKey(t => t.TokenHash);
+            e.HasIndex(t => new { t.PlayerId, t.GameId });
+
+            e.Property(t => t.TokenHash).HasMaxLength(64);
+            e.Property(t => t.Email).HasMaxLength(254);
+
+            e.HasQueryFilter(t => t.GameId == _gameContext.GameId);
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(e =>
+        {
+            e.HasKey(t => t.TokenHash);
+            e.HasIndex(t => new { t.PlayerId, t.GameId });
+
+            e.Property(t => t.TokenHash).HasMaxLength(64);
+            e.Property(t => t.IpAddress).HasMaxLength(64);
+
+            e.HasQueryFilter(t => t.GameId == _gameContext.GameId);
         });
     }
 }

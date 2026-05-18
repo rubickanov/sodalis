@@ -26,15 +26,17 @@ public static class GetProfileByIdEndpoint
         Guid playerId,
         ClaimsPrincipal user,
         ProfileDbContext db,
+        Sodalis.Core.IGameContext gameContext,
         CancellationToken ct)
     {
-        if (!RequestContext.TryResolvePlayerAndGame(user, out _, out var gameId))
+        if (!RequestContext.TryResolvePlayer(user, gameContext, out _))
         {
             return Results.Problem("Malformed token.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
+        // GameId filter applied automatically by HasQueryFilter.
         var profile = await db.Profiles
-            .FirstOrDefaultAsync(p => p.PlayerId == playerId && p.GameId == gameId, ct);
+            .FirstOrDefaultAsync(p => p.PlayerId == playerId, ct);
 
         return profile is null
             ? Results.NotFound()

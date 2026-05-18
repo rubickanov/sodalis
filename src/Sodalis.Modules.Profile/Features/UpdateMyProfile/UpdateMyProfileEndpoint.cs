@@ -25,14 +25,15 @@ public static class UpdateMyProfileEndpoint
         UpdateMyProfileRequest request,
         ClaimsPrincipal user,
         UpdateMyProfileHandler handler,
+        Sodalis.Core.IGameContext gameContext,
         CancellationToken ct)
     {
-        if (!RequestContext.TryResolvePlayerAndGame(user, out var playerId, out var gameId))
+        if (!RequestContext.TryResolvePlayer(user, gameContext, out var playerId))
         {
             return Results.Problem("Malformed token.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        var result = await handler.HandleAsync(request, playerId, gameId, ct);
+        var result = await handler.HandleAsync(request, playerId, gameContext.GameId, ct);
 
         return result.Success
             ? Results.Ok(result.Response)

@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Sodalis.Core;
 
 namespace Sodalis.Modules.Identity.Features.Login;
@@ -21,16 +23,14 @@ public static class LoginEndpoint
     private static async Task<IResult> HandleAsync(
         LoginRequest request,
         LoginHandler handler,
+        IGameContext gameContext,
         HttpContext http,
         CancellationToken ct)
     {
-        // TEMPORARY: hardcoded gameId until API key middleware is in.
-        // Real flow: middleware reads X-Sodalis-Game-Key header → looks up Game → puts GameId in IGameContext.
-        var gameId = RequestContext.ResolveGameId(http);
         var userAgent = RequestContext.UserAgent(http);
         var ipAddress = RequestContext.IpAddress(http);
 
-        var result = await handler.HandleAsync(request, gameId, userAgent, ipAddress, ct);
+        var result = await handler.HandleAsync(request, gameContext.GameId, userAgent, ipAddress, ct);
 
         return result.Success
             ? Results.Ok(result.Response)
@@ -40,21 +40,35 @@ public static class LoginEndpoint
 
 internal static class RequestContext
 {
-    // Stub: allow passing game id via header for manual testing.
-    // Will be replaced with real API key middleware in Phase 1.
-    public static Guid ResolveGameId(HttpContext http)
-    {
-        if (http.Request.Headers.TryGetValue("X-Game-Id", out var raw)
-            && Guid.TryParse(raw.ToString(), out var parsed))
-        {
-            return parsed;
-        }
-        return Guid.Parse("00000000-0000-0000-0000-000000000001");
-    }
-
     public static string? UserAgent(HttpContext http) =>
         http.Request.Headers.UserAgent.ToString() is { Length: > 0 } ua ? ua : null;
 
     public static string? IpAddress(HttpContext http) =>
         http.Connection.RemoteIpAddress?.ToString();
+
+    /// <summary>
+    /// Resolves the calling player from JWT claims, and verifies that the JWT's
+    /// game claim matches the API-key-resolved IGameContext. A mismatch means the
+    /// caller mixed a JWT from one game with an API key for another — treat as 401.
+    /// </summary>
+    public static bool TryResolvePlayer(
+        ClaimsPrincipal user,
+        IGameContext gameContext,
+        out Guid playerId)
+    {
+        playerId = default;
+
+        var sub = user.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        var gid = user.FindFirstValue("gid");
+
+        if (sub is null
+            || gid is null
+            || !Guid.TryParse(sub, out playerId)
+            || !Guid.TryParse(gid, out var jwtGameId))
+        {
+            return false;
+        }
+
+        return jwtGameId == gameContext.GameId;
+    }
 }

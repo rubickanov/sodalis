@@ -13,6 +13,12 @@ public static class SodalisExtensions
     {
         moduleRegistry = new ModuleRegistry();
         services.AddSingleton(moduleRegistry);
+
+        // Double-registered: middleware mutates the concrete GameContext,
+        // consumers (DbContexts, handlers) read through IGameContext.
+        services.AddScoped<GameContext>();
+        services.AddScoped<IGameContext>(sp => sp.GetRequiredService<GameContext>());
+
         return services;
     }
 
@@ -42,6 +48,17 @@ public static class SodalisExtensions
         }
 
         return routes;
+    }
+
+    public static IApplicationBuilder ConfigureSodalisModules(this IApplicationBuilder app)
+    {
+        var registry = app.ApplicationServices.GetRequiredService<ModuleRegistry>();
+        foreach (IModule module in registry.Modules)
+        {
+            module.ConfigureMiddleware(app);
+        }
+
+        return app;
     }
 
     public static async Task ApplySodalisMigrationsAsync(this WebApplication app, CancellationToken ct = default)
