@@ -10,6 +10,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/Sodalis.IntegrationTests/Sodalis.IntegrationTests.csproj" />
     <Project Path="tests/Sodalis.Modules.Identity.UnitTests/Sodalis.Modules.Identity.UnitTests.csproj" />
+    <Project Path="tests/Sodalis.Modules.Messaging.UnitTests/Sodalis.Modules.Messaging.UnitTests.csproj" />
     <Project Path="tests/Sodalis.Modules.Profile.UnitTests/Sodalis.Modules.Profile.UnitTests.csproj" />
+    <Project Path="tests/Sodalis.Modules.Tenancy.UnitTests/Sodalis.Modules.Tenancy.UnitTests.csproj" />
   </Folder>
 </Solution>

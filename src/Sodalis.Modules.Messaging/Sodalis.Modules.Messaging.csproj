@@ -27,4 +27,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sodalis.Modules.Messaging.UnitTests" />
+  </ItemGroup>
+
 </Project>
