@@ -33,12 +33,19 @@ public class PasswordHasherTests
         _hasher.Verify("wrong password", hash).ShouldBeFalse();
     }
 
-    [Fact]
-    public void Verify_ReturnsFalse_ForMalformedHash()
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-a-real-hash")]
+    [InlineData("$argon2id$broken")]
+    [InlineData("$argon2i$v=19$m=19456,t=2,p=1$c2FsdA==$aGFzaA==")]                                  // wrong algorithm
+    [InlineData("$argon2id$v=99$m=19456,t=2,p=1$c2FsdA==$aGFzaA==")]                                 // unsupported version
+    [InlineData("$argon2id$v=19$justm19456,t=2,p=1$c2FsdA==$aGFzaA==")]                              // broken k=v pair
+    [InlineData("$argon2id$v=19$m=notanint,t=2,p=1$c2FsdA==$aGFzaA==")]                              // non-int value
+    [InlineData("$argon2id$v=19$t=2,p=1$c2FsdA==$aGFzaA==")]                                         // missing memory param
+    [InlineData("$argon2id$v=19$m=19456,t=2,p=1$not-base64!$aGFzaA==")]                              // bad base64 salt
+    public void Verify_ReturnsFalse_ForMalformedHash(string phc)
     {
-        _hasher.Verify("anything", "not-a-real-hash").ShouldBeFalse();
-        _hasher.Verify("anything", "$argon2id$broken").ShouldBeFalse();
-        _hasher.Verify("anything", "").ShouldBeFalse();
+        _hasher.Verify("anything", phc).ShouldBeFalse();
     }
 
     [Fact]
