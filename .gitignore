@@ -85,6 +85,7 @@ coverage*.json
 coverage*.xml
 coverage*.info
 .coverage/
+coverage/
 BenchmarkDotNet.Artifacts/
 
 # StyleCop

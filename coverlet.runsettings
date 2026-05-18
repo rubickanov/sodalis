@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+
+          <!-- Skip generated / boilerplate code that does not need test coverage. -->
+          <ExcludeByFile>
+            **/Migrations/**/*.cs,**/obj/**/*.cs,**/*.Designer.cs
+          </ExcludeByFile>
+
+          <!-- Skip startup glue and OpenAPI metadata helpers — covered implicitly
+               by integration tests booting the host. -->
+          <Exclude>
+            [Sodalis.Host]Program,[Sodalis.Host]Sodalis.Host.OpenApi.*
+          </Exclude>
+
+          <!-- Skip compiler-generated and EF Core internals. -->
+          <ExcludeByAttribute>
+            Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute
+          </ExcludeByAttribute>
+
+          <SkipAutoProps>true</SkipAutoProps>
+          <DeterministicReport>true</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

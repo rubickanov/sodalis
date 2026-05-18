@@ -22,6 +22,24 @@ clean:
 test:
     dotnet test
 
+# run tests with coverage; outputs HTML + Markdown summary to ./coverage/
+coverage:
+    @rm -rf coverage
+    @find tests -type d -name TestResults -exec rm -rf {} + 2>/dev/null || true
+    dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+    @dotnet tool restore > /dev/null
+    @# Pass an explicit semicolon-separated glob to ReportGenerator. The `tests/**/...`
+    @# form is a shell glob and would only ever expand to one match here, silently
+    @# dropping the other two reports → union-merge would not happen.
+    @dotnet reportgenerator \
+        "-reports:tests/*/TestResults/*/coverage.cobertura.xml" \
+        -targetdir:"coverage" \
+        -reporttypes:"Html;MarkdownSummary;TextSummary"
+    @echo ""
+    @cat coverage/Summary.txt
+    @echo ""
+    @echo "Full HTML report: coverage/index.html"
+
 # apply .editorconfig formatting to the whole solution
 format:
     dotnet format
