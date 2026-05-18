@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Sodalis.Core;
 using Sodalis.Modules.Tenancy.ApiKeys;
 using Sodalis.Modules.Tenancy.Persistence;
@@ -32,6 +34,9 @@ public sealed class TenancyModule : IModule
         services.AddMemoryCache();
         services.AddScoped<ApiKeyResolver>();
         services.AddScoped<TenancySeeder>();
+
+        services.ConfigureOpenTelemetryTracerProvider(t => t.AddSource(TenancyTelemetry.Name));
+        services.ConfigureOpenTelemetryMeterProvider(m => m.AddMeter(TenancyTelemetry.Name));
     }
 
     public void MapEndpoints(IEndpointRouteBuilder routes)

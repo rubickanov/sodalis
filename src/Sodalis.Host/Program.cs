@@ -7,6 +7,7 @@ using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
 using Sodalis.Core;
+using Sodalis.Host.Observability;
 using Sodalis.Host.OpenApi;
 using Sodalis.Modules.Identity;
 using Sodalis.Modules.Messaging;
@@ -37,6 +38,11 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
+
+    // OTel pipeline must be registered BEFORE module RegisterServices — modules
+    // add their own ActivitySource/Meter via ConfigureOpenTelemetryTracerProvider
+    // and need the builder already wired up.
+    builder.AddSodalisObservability();
 
     builder.Services.AddOpenApi("v1", opts =>
     {

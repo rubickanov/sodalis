@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Sodalis.Core;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.AuthProviders;
@@ -63,6 +65,9 @@ public sealed class IdentityModule : IModule
         services.AddScoped<ResetPasswordHandler>();
 
         services.AddValidatorsFromAssemblyContaining<IdentityModule>(ServiceLifetime.Singleton);
+
+        services.ConfigureOpenTelemetryTracerProvider(t => t.AddSource(IdentityTelemetry.Name));
+        services.ConfigureOpenTelemetryMeterProvider(m => m.AddMeter(IdentityTelemetry.Name));
 
         ConfigureJwtAuthentication(services, configuration);
     }

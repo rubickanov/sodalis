@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Sodalis.Core;
 using Sodalis.Modules.Profile.Features.GetMyProfile;
 using Sodalis.Modules.Profile.Features.GetProfileById;
@@ -33,6 +35,9 @@ public sealed class ProfileModule : IModule
         services.AddScoped<UpdateMyProfileHandler>();
 
         services.AddValidatorsFromAssemblyContaining<ProfileModule>(ServiceLifetime.Singleton);
+
+        services.ConfigureOpenTelemetryTracerProvider(t => t.AddSource(ProfileTelemetry.Name));
+        services.ConfigureOpenTelemetryMeterProvider(m => m.AddMeter(ProfileTelemetry.Name));
     }
 
     public void MapEndpoints(IEndpointRouteBuilder routes)

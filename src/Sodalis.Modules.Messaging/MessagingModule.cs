@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Sodalis.Core;
 using Sodalis.Modules.Messaging.Branding;
 using Sodalis.Modules.Messaging.Persistence;
@@ -46,6 +48,9 @@ public sealed class MessagingModule : IModule
         services.AddScoped<IEmailProvider, SmtpEmailProvider>();
 
         services.AddScoped<IMessageSender, MessageSender>();
+
+        services.ConfigureOpenTelemetryTracerProvider(t => t.AddSource(MessagingTelemetry.Name));
+        services.ConfigureOpenTelemetryMeterProvider(m => m.AddMeter(MessagingTelemetry.Name));
     }
 
     public void MapEndpoints(IEndpointRouteBuilder routes)

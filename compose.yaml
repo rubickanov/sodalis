@@ -18,6 +18,17 @@
       retries: 5
       start_period: 30s
 
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+    container_name: sodalis-aspire-dashboard
+    restart: unless-stopped
+    environment:
+      # Dev only — turns off the login token and exposes the dashboard openly on localhost.
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "18888:18888"   # Web UI
+      - "18889:18889"   # OTLP/gRPC ingest
+
 
 volumes:
   postgres-data:
