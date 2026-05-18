@@ -31,13 +31,12 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    // TODO(prod): add Serilog.Enrichers.Environment package and
-    //   .Enrich.WithMachineName().Enrich.WithEnvironmentName()
-    //   so logs from multiple pods are distinguishable in Loki/Elastic.
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
-        .Enrich.FromLogContext());
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithEnvironmentName());
 
     // OTel pipeline must be registered BEFORE module RegisterServices — modules
     // add their own ActivitySource/Meter via ConfigureOpenTelemetryTracerProvider
