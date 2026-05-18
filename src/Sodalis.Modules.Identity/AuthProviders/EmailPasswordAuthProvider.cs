@@ -64,5 +64,5 @@ public sealed class EmailPasswordAuthProvider(IdentityDbContext db, PasswordHash
 
 public sealed record EmailMetadata(
     string PasswordHash,
-    bool EmailVerified,
+    bool EmailVerified = false,
     DateTimeOffset? EmailVerifiedAt = null);

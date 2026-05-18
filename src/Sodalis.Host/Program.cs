@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -6,8 +7,18 @@ using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
 using Sodalis.Core;
+using Sodalis.Host.OpenApi;
 using Sodalis.Modules.Identity;
+using Sodalis.Modules.Messaging;
 using Sodalis.Modules.Profile;
+using Sodalis.Modules.Tenancy;
+
+// Force English everywhere — error messages, formatting, FluentValidation translations.
+// (i18n): if we ever want per-client localization, replace this with
+//   app.UseRequestLocalization(...) reading Accept-Language.
+var defaultCulture = CultureInfo.GetCultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = defaultCulture;
+CultureInfo.DefaultThreadCurrentUICulture = defaultCulture;
 
 // Bootstrap logger: captures fatal errors during host construction (DI, config, migrations)
 // before the configured Serilog pipeline is wired up.
@@ -35,9 +46,15 @@ try
             doc.Info.Version = "v1";
             return Task.CompletedTask;
         });
+        opts.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+        opts.AddOperationTransformer<BearerSecurityRequirementTransformer>();
     });
 
     builder.Services.AddSodalisCore(out ModuleRegistry moduleRegistry);
+    // Tenancy MUST be first — it owns the API-key middleware that resolves
+    // IGameContext for every /api/* request. Identity/Profile read from it.
+    builder.Services.AddSodalisModule<TenancyModule>(moduleRegistry, builder.Configuration);
+    builder.Services.AddSodalisModule<MessagingModule>(moduleRegistry, builder.Configuration);
     builder.Services.AddSodalisModule<IdentityModule>(moduleRegistry, builder.Configuration);
     builder.Services.AddSodalisModule<ProfileModule>(moduleRegistry, builder.Configuration);
 
@@ -53,7 +70,9 @@ try
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi();
-        app.MapScalarApiReference();
+        app.MapScalarApiReference(opts => opts
+            .WithTitle("Sodalis API")
+            .AddPreferredSecuritySchemes("Bearer"));
     }
 
     app.UseSerilogRequestLogging(options =>
@@ -71,6 +90,8 @@ try
     });
 
     await app.ApplySodalisMigrationsAsync();
+
+    app.ConfigureSodalisModules();
 
     app.UseAuthentication();
     app.UseAuthorization();

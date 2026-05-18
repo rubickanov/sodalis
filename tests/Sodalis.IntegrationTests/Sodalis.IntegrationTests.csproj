@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sodalis.Host\Sodalis.Host.csproj" />
+    <ProjectReference Include="..\..\src\Sodalis.Modules.Tenancy\Sodalis.Modules.Tenancy.csproj" />
   </ItemGroup>
 
 </Project>

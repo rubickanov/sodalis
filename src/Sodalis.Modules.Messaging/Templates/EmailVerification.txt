@@ -1,0 +1,13 @@
+Hi {{player_name}},
+
+Confirm this is your email to finish setting up your account on {{brand_name}}.
+
+Verify your email by opening this link:
+{{verification_url}}
+
+If you didn't sign up for {{brand_name}}, you can safely ignore this email.
+{{#support_url}}
+Need help? Contact us: {{support_url}}
+{{/support_url}}
+--
+{{footer_text}}

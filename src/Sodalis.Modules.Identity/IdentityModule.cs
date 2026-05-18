@@ -11,11 +11,16 @@ using Microsoft.IdentityModel.Tokens;
 using Sodalis.Core;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.AuthProviders;
+using Sodalis.Modules.Identity.Features.ChangePassword;
+using Sodalis.Modules.Identity.Features.ForgotPassword;
 using Sodalis.Modules.Identity.Features.Login;
 using Sodalis.Modules.Identity.Features.Logout;
+using Sodalis.Modules.Identity.Features.LogoutAll;
 using Sodalis.Modules.Identity.Features.Me;
 using Sodalis.Modules.Identity.Features.Refresh;
 using Sodalis.Modules.Identity.Features.Register;
+using Sodalis.Modules.Identity.Features.ResetPassword;
+using Sodalis.Modules.Identity.Features.VerifyEmail;
 using Sodalis.Modules.Identity.Persistence;
 
 namespace Sodalis.Modules.Identity;
@@ -42,12 +47,20 @@ public sealed class IdentityModule : IModule
         services.AddSingleton<PasswordHasher>();
         services.AddScoped<RefreshTokenService>();
 
-        services.AddSingleton<IAuthProvider, AnonymousAuthProvider>();
+        // Both providers Scoped to match the most-constrained lifetime in the
+        // IEnumerable<IAuthProvider> set. Mixing lifetimes works today (Anonymous
+        // is stateless), but adding a provider with a captive DbContext would
+        // silently break only the Scoped resolution.
+        services.AddScoped<IAuthProvider, AnonymousAuthProvider>();
         services.AddScoped<IAuthProvider, EmailPasswordAuthProvider>();
 
         services.AddScoped<LoginHandler>();
         services.AddScoped<RefreshHandler>();
         services.AddScoped<RegisterHandler>();
+        services.AddScoped<ChangePasswordHandler>();
+        services.AddScoped<VerifyEmailHandler>();
+        services.AddScoped<ForgotPasswordHandler>();
+        services.AddScoped<ResetPasswordHandler>();
 
         services.AddValidatorsFromAssemblyContaining<IdentityModule>(ServiceLifetime.Singleton);
 
@@ -62,6 +75,11 @@ public sealed class IdentityModule : IModule
         RegisterEndpoint.Map(auth);
         RefreshEndpoint.Map(auth);
         LogoutEndpoint.Map(auth);
+        LogoutAllEndpoint.Map(auth);
+        ChangePasswordEndpoint.Map(auth);
+        VerifyEmailEndpoint.Map(auth);
+        ForgotPasswordEndpoint.Map(auth);
+        ResetPasswordEndpoint.Map(auth);
         MeEndpoint.Map(auth);
     }
 
