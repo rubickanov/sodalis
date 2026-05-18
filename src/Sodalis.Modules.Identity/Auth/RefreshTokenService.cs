@@ -92,16 +92,23 @@ public sealed class RefreshTokenService(
         }
 
         // We won the race; fetch PlayerId to attach the new token.
+        // FirstOrDefault (not First) — a future expired-token cleanup job could
+        // race in and delete the row between our UPDATE and this SELECT.
         var playerId = await db.RefreshTokens
             .AsNoTracking()
             .Where(t => t.TokenHash == hash)
-            .Select(t => t.PlayerId)
-            .FirstAsync(ct);
+            .Select(t => (Guid?)t.PlayerId)
+            .FirstOrDefaultAsync(ct);
+
+        if (playerId is null)
+        {
+            return RotateResult.Invalid("Refresh token vanished between rotation and read.");
+        }
 
         db.RefreshTokens.Add(new RefreshToken
         {
             TokenHash = newHash,
-            PlayerId = playerId,
+            PlayerId = playerId.Value,
             GameId = gameId,
             IssuedAt = now,
             ExpiresAt = newExpires,
@@ -110,7 +117,7 @@ public sealed class RefreshTokenService(
         });
 
         await db.SaveChangesAsync(ct);
-        return RotateResult.Ok(playerId, newRaw, newExpires);
+        return RotateResult.Ok(playerId.Value, newRaw, newExpires);
     }
 
     public async Task<bool> RevokeAsync(string rawToken, Guid gameId, CancellationToken ct)

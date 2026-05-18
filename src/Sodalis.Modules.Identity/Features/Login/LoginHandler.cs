@@ -48,6 +48,14 @@ public sealed class LoginHandler(
             player = await db.Players
                 .Include(p => p.ExternalIdentities)
                 .FirstAsync(p => p.PlayerId == existing.PlayerId, ct);
+
+            // Reject before touching LastLoginAt or persisting anything —
+            // otherwise the audit log shows a successful login for a banned player.
+            if (player.IsBanned)
+            {
+                return LoginResult.Failed("Account is banned.");
+            }
+
             player.LastLoginAt = DateTimeOffset.UtcNow;
             isNew = false;
         }
@@ -76,11 +84,6 @@ public sealed class LoginHandler(
         }
 
         await db.SaveChangesAsync(ct);
-
-        if (player.IsBanned)
-        {
-            return LoginResult.Failed("Account is banned.");
-        }
 
         var linkedProviders = player.ExternalIdentities.Select(ei => ei.ProviderId).ToList();
         var accessToken = jwtIssuer.Issue(player.PlayerId, gameId, linkedProviders);
