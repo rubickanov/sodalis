@@ -83,3 +83,7 @@ urls:
     @echo "  database          sodalis"
     @echo "  user / password   sodalis / sodalis"
     @echo "  shell shortcut    just psql"
+    @echo ""
+    @echo "Aspire Dashboard (logs / traces / metrics)"
+    @echo "  Web UI            http://localhost:18888"
+    @echo "  OTLP ingest       http://localhost:18889  (gRPC, configured via OTEL_EXPORTER_OTLP_ENDPOINT)"
