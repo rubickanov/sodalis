@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Sodalis.Modules.Messaging.Branding;
@@ -23,7 +24,7 @@ internal sealed class MessageSender(
         vars["verification_url"] = verificationUrl;
 
         var message = Build(branding, toEmail, playerName, TemplateKind.EmailVerification, vars);
-        FireAndForget(message);
+        FireAndForget(message, TemplateKind.EmailVerification, gameId);
     }
 
     public async Task SendPasswordResetAsync(
@@ -35,7 +36,7 @@ internal sealed class MessageSender(
         vars["expires_in"] = HumanizeDuration(expiresIn);
 
         var message = Build(branding, toEmail, playerName, TemplateKind.PasswordReset, vars);
-        FireAndForget(message);
+        FireAndForget(message, TemplateKind.PasswordReset, gameId);
     }
 
     public async Task SendPasswordChangedNotificationAsync(
@@ -46,7 +47,7 @@ internal sealed class MessageSender(
         vars["changed_at_utc"] = changedAt.UtcDateTime.ToString("u");
 
         var message = Build(branding, toEmail, playerName, TemplateKind.PasswordChanged, vars);
-        FireAndForget(message);
+        FireAndForget(message, TemplateKind.PasswordChanged, gameId);
     }
 
     private static Dictionary<string, string?> BaseVars(ResolvedBranding branding, string playerName) => new()
@@ -91,17 +92,28 @@ internal sealed class MessageSender(
     // Task.Runs → N parallel SMTP connections. Gmail rate-limits at ~20/min; we
     // can self-DoS our own SMTP provider. Replace with a Channel<EmailMessage>
     // + a small worker pool (e.g. 4 workers) so concurrency is bounded.
-    //
-    // TODO(observability): permanent failures land in `LogError` and that's it.
-    // No metrics (sent / failed / retried counters), no DLQ, no alert. Add
-    // OpenTelemetry counters on each branch and write the message to a
-    // messaging.failed_messages table on terminal failure so ops can replay/audit.
-    private void FireAndForget(EmailMessage message)
+    private void FireAndForget(EmailMessage message, TemplateKind kind, Guid gameId)
     {
-        // Capture a fresh scope for the background task — caller's scope will be
-        // disposed long before we finish retrying.
+        // Snapshot the caller's trace context now — by the time the background
+        // task runs, Activity.Current will have been swapped out (request ended).
+        // Passing the SpanContext explicitly lets OTel parent the background span
+        // to the request that triggered it.
+        var parentContext = Activity.Current?.Context ?? default;
+        var kindTag = kind.ToString();
+
         _ = Task.Run(async () =>
         {
+            using var activity = MessagingTelemetry.ActivitySource.StartActivity(
+                "messaging.send_email",
+                ActivityKind.Producer,
+                parentContext);
+            activity?.SetTag("sodalis.email.kind", kindTag);
+            activity?.SetTag("sodalis.game.id", gameId);
+
+            var sw = Stopwatch.StartNew();
+            int finalAttempt = 0;
+            string outcome = "failed";
+
             try
             {
                 using var scope = scopeFactory.CreateScope();
@@ -110,9 +122,12 @@ internal sealed class MessageSender(
                 var delay = InitialRetryDelay;
                 for (int attempt = 1; attempt <= MaxRetries; attempt++)
                 {
+                    finalAttempt = attempt;
                     try
                     {
                         await provider.SendAsync(message, CancellationToken.None);
+                        outcome = "sent";
+                        activity?.SetTag("sodalis.email.attempts", attempt);
                         return;
                     }
                     catch (Exception ex) when (attempt < MaxRetries)
@@ -120,6 +135,15 @@ internal sealed class MessageSender(
                         logger.LogWarning(ex,
                             "Email delivery to {Recipient} failed (attempt {Attempt}/{Max}); retrying in {Delay}s.",
                             message.ToAddress, attempt, MaxRetries, delay.TotalSeconds);
+                        activity?.AddEvent(new ActivityEvent("retry",
+                            tags: new ActivityTagsCollection
+                            {
+                                { "attempt", attempt },
+                                { "delay_seconds", delay.TotalSeconds }
+                            }));
+                        MessagingTelemetry.EmailSendTotal.Add(1,
+                            new KeyValuePair<string, object?>("kind", kindTag),
+                            new KeyValuePair<string, object?>("outcome", "retried"));
                         await Task.Delay(delay, CancellationToken.None);
                         delay = TimeSpan.FromSeconds(delay.TotalSeconds * 2);
                     }
@@ -130,6 +154,25 @@ internal sealed class MessageSender(
                 logger.LogError(ex,
                     "Email delivery to {Recipient} failed permanently after {Max} attempts.",
                     message.ToAddress, MaxRetries);
+                activity?.SetStatus(ActivityStatusCode.Error, "permanent_failure");
+                activity?.SetTag("sodalis.email.attempts", finalAttempt);
+            }
+            finally
+            {
+                sw.Stop();
+                MessagingTelemetry.EmailSendDurationSeconds.Record(sw.Elapsed.TotalSeconds,
+                    new KeyValuePair<string, object?>("kind", kindTag),
+                    new KeyValuePair<string, object?>("outcome", outcome));
+                MessagingTelemetry.EmailSendTotal.Add(1,
+                    new KeyValuePair<string, object?>("kind", kindTag),
+                    new KeyValuePair<string, object?>("outcome", outcome));
+
+                if (outcome == "sent")
+                {
+                    logger.LogInformation(
+                        "Email sent kind={Kind} recipient={Recipient} attempts={Attempts} durationMs={DurationMs}",
+                        kindTag, message.ToAddress, finalAttempt, sw.ElapsedMilliseconds);
+                }
             }
         });
     }

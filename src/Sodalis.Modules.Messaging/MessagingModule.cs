@@ -38,6 +38,20 @@ public sealed class MessagingModule : IModule
 
         services.Configure<MessagingSettings>(configuration.GetSection(MessagingSettings.SectionName));
 
+        // Fail-fast ONLY when env is explicitly Production/Staging. UseEnvironment("Test")
+        // and other programmatic overrides don't set the env var, so an empty / unknown
+        // env stays permissive (better than breaking local boot or test infra).
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+        var isStrictEnv = string.Equals(environment, "Production", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(environment, "Staging", StringComparison.OrdinalIgnoreCase);
+        var smtp = configuration.GetSection(MessagingSettings.SectionName).Get<MessagingSettings>()?.Smtp;
+        if (isStrictEnv && string.IsNullOrWhiteSpace(smtp?.Host))
+        {
+            throw new InvalidOperationException(
+                $"Messaging is enabled but Smtp.Host is not configured (env={environment}). Configure 'Sodalis:Modules:Messaging:Smtp.Host'.");
+        }
+
         services.AddMemoryCache();
         services.AddScoped<BrandingResolver>();
         services.AddSingleton<EmailTemplateRenderer>();

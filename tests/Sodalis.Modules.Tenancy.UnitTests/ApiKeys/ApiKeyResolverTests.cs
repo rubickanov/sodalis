@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Sodalis.Modules.Tenancy.ApiKeys;
 using Sodalis.Modules.Tenancy.Domain;
@@ -19,7 +20,7 @@ public class ApiKeyResolverTests
         SeedActiveGameWithKey(db, GameId, RawKey);
         await db.SaveChangesAsync();
 
-        var resolver = new ApiKeyResolver(db, NewCache());
+        var resolver = new ApiKeyResolver(db, NewCache(), NullLogger<ApiKeyResolver>.Instance);
         var result = await resolver.ResolveGameIdAsync(RawKey, CancellationToken.None);
 
         result.ShouldBe(GameId);
@@ -32,7 +33,7 @@ public class ApiKeyResolverTests
         SeedActiveGameWithKey(db, GameId, RawKey);
         await db.SaveChangesAsync();
 
-        var resolver = new ApiKeyResolver(db, NewCache());
+        var resolver = new ApiKeyResolver(db, NewCache(), NullLogger<ApiKeyResolver>.Instance);
         var result = await resolver.ResolveGameIdAsync("sodalis_test_other_unknown_value", CancellationToken.None);
 
         result.ShouldBeNull();
@@ -56,7 +57,7 @@ public class ApiKeyResolverTests
         db.GameApiKeys.Add(key);
         await db.SaveChangesAsync();
 
-        var resolver = new ApiKeyResolver(db, NewCache());
+        var resolver = new ApiKeyResolver(db, NewCache(), NullLogger<ApiKeyResolver>.Instance);
         var result = await resolver.ResolveGameIdAsync(RawKey, CancellationToken.None);
 
         result.ShouldBeNull();
@@ -79,7 +80,7 @@ public class ApiKeyResolverTests
         db.GameApiKeys.Add(key);
         await db.SaveChangesAsync();
 
-        var resolver = new ApiKeyResolver(db, NewCache());
+        var resolver = new ApiKeyResolver(db, NewCache(), NullLogger<ApiKeyResolver>.Instance);
         var result = await resolver.ResolveGameIdAsync(RawKey, CancellationToken.None);
 
         result.ShouldBeNull();
@@ -93,7 +94,7 @@ public class ApiKeyResolverTests
         await db.SaveChangesAsync();
 
         var cache = NewCache();
-        var resolver = new ApiKeyResolver(db, cache);
+        var resolver = new ApiKeyResolver(db, cache, NullLogger<ApiKeyResolver>.Instance);
 
         var first = await resolver.ResolveGameIdAsync(RawKey, CancellationToken.None);
         first.ShouldBe(GameId);
@@ -113,7 +114,7 @@ public class ApiKeyResolverTests
         await using var db = CreateDb();
 
         var cache = NewCache();
-        var resolver = new ApiKeyResolver(db, cache);
+        var resolver = new ApiKeyResolver(db, cache, NullLogger<ApiKeyResolver>.Instance);
 
         var first = await resolver.ResolveGameIdAsync(RawKey, CancellationToken.None);
         first.ShouldBeNull();

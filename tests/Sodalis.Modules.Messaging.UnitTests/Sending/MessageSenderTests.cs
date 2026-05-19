@@ -132,7 +132,7 @@ public class MessageSenderTests
             .Options;
         var db = new MessagingDbContext(dbOptions);
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var resolver = new BrandingResolver(db, cache, settings);
+        var resolver = new BrandingResolver(db, cache, settings, NullLogger<BrandingResolver>.Instance);
         var renderer = new EmailTemplateRenderer();
 
         // Fire-and-forget creates a fresh scope and resolves IEmailProvider from

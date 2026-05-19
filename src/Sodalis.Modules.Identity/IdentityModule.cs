@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -122,6 +123,26 @@ public sealed class IdentityModule : IModule
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     ClockSkew = TimeSpan.FromSeconds(30)
+                };
+
+                // Without this, the default JwtBearer logs 401s into a category
+                // that's silenced by "Microsoft": "Warning" — every tampered token
+                // disappears. Surface a single line + a metric instead.
+                opts.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = ctx =>
+                    {
+                        var reason = ctx.Exception.GetType().Name;
+                        var moduleLogger = ctx.HttpContext.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("Sodalis.Modules.Identity.Auth.JwtBearer");
+                        moduleLogger.LogWarning(
+                            "JWT authentication failed: {Reason} ({Message})",
+                            reason, ctx.Exception.Message);
+                        IdentityTelemetry.JwtAuthFailureTotal.Add(1,
+                            new KeyValuePair<string, object?>("reason", reason));
+                        return Task.CompletedTask;
+                    }
                 };
             });
 

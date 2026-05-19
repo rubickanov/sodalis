@@ -1,7 +1,9 @@
 using System.Buffers.Text;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sodalis.Modules.Identity.AuthProviders;
 using Sodalis.Modules.Identity.Domain;
@@ -14,7 +16,8 @@ namespace Sodalis.Modules.Identity.Features.ForgotPassword;
 public sealed class ForgotPasswordHandler(
     IdentityDbContext db,
     IMessageSender messageSender,
-    IOptions<MessagingSettings> messagingOptions)
+    IOptions<MessagingSettings> messagingOptions,
+    ILogger<ForgotPasswordHandler> logger)
 {
     private readonly MessagingSettings _messaging = messagingOptions.Value;
 
@@ -24,6 +27,9 @@ public sealed class ForgotPasswordHandler(
         string? ipAddress,
         CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.password_reset_request");
+        activity?.SetTag("sodalis.game.id", gameId);
+
         var email = EmailPasswordAuthProvider.NormalizeEmail(request.Email);
 
         var identity = await db.ExternalIdentities.FirstOrDefaultAsync(
@@ -34,6 +40,11 @@ public sealed class ForgotPasswordHandler(
         // sees the same 204 regardless.
         if (identity is null)
         {
+            // Debug only — do NOT log the email here. The metric is the audit signal.
+            logger.LogDebug("Password reset requested for unknown email (game {GameId})", gameId);
+            IdentityTelemetry.PasswordResetRequestedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "unknown_email"));
+            // status stays Ok — observable failure here is a side channel.
             return;
         }
 
@@ -56,6 +67,13 @@ public sealed class ForgotPasswordHandler(
         var resetUrl = AppendToken(_messaging.LinkBaseUrls.PasswordReset, raw);
         await messageSender.SendPasswordResetAsync(
             gameId, email, playerName: email, resetUrl, lifetime, ct);
+
+        activity?.SetTag("sodalis.player.id", identity.PlayerId);
+        logger.LogInformation(
+            "Password reset issued for player {PlayerId} (game {GameId})",
+            identity.PlayerId, gameId);
+        IdentityTelemetry.PasswordResetRequestedTotal.Add(1,
+            new KeyValuePair<string, object?>("outcome", "issued"));
     }
 
     internal static string GenerateRawToken()

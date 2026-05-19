@@ -15,6 +15,10 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, ILogger<ApiKeyMiddlew
             || headerValues.Count == 0
             || string.IsNullOrWhiteSpace(headerValues[0]))
         {
+            logger.LogWarning("API key validation failed: {Reason}", "missing_header");
+            TenancyTelemetry.ApiKeyResolutionTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "invalid"),
+                new KeyValuePair<string, object?>("reason", "missing_header"));
             await WriteUnauthorizedAsync(context, $"Missing '{HeaderName}' header.");
             return;
         }
@@ -24,6 +28,10 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, ILogger<ApiKeyMiddlew
         var gameId = await resolver.ResolveGameIdAsync(rawKey, context.RequestAborted);
         if (gameId is null)
         {
+            logger.LogWarning("API key validation failed: {Reason}", "invalid_key");
+            TenancyTelemetry.ApiKeyResolutionTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "invalid"),
+                new KeyValuePair<string, object?>("reason", "unknown_or_revoked"));
             await WriteUnauthorizedAsync(context, "Invalid or revoked API key.");
             return;
         }
@@ -49,7 +57,13 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, ILogger<ApiKeyMiddlew
             }
         });
 
-        await next(context);
+        // Stamp GameId on every downstream log line for the rest of the request scope.
+        // Provider-agnostic: Serilog's MEL provider translates BeginScope dictionaries
+        // into log properties when Enrich.FromLogContext is on.
+        using (logger.BeginScope(new Dictionary<string, object> { ["GameId"] = gameId.Value }))
+        {
+            await next(context);
+        }
     }
 
     private static async Task WriteUnauthorizedAsync(HttpContext context, string detail)

@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.AuthProviders;
@@ -18,7 +20,8 @@ public sealed class RegisterHandler(
     JwtIssuer jwtIssuer,
     RefreshTokenService refreshTokens,
     IMessageSender messageSender,
-    IOptions<MessagingSettings> messagingOptions)
+    IOptions<MessagingSettings> messagingOptions,
+    ILogger<RegisterHandler> logger)
 {
     private readonly MessagingSettings _messaging = messagingOptions.Value;
 
@@ -29,6 +32,10 @@ public sealed class RegisterHandler(
         string? ipAddress,
         CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.register");
+        activity?.SetTag("sodalis.game.id", gameId);
+        activity?.SetTag("sodalis.auth.provider", EmailPasswordAuthProvider.Id);
+
         var email = EmailPasswordAuthProvider.NormalizeEmail(request.Email);
 
         var alreadyExists = await db.ExternalIdentities.AnyAsync(
@@ -39,6 +46,11 @@ public sealed class RegisterHandler(
 
         if (alreadyExists)
         {
+            logger.LogInformation("Registration failed: email already registered for game {GameId}", gameId);
+            IdentityTelemetry.RegistrationsTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "failure"),
+                new KeyValuePair<string, object?>("reason", "email_taken"));
+            activity?.SetStatus(ActivityStatusCode.Error, "email_taken");
             return RegisterResult.Failed("Email is already registered.");
         }
 
@@ -91,6 +103,14 @@ public sealed class RegisterHandler(
         // registration — the user has an account; they can request a resend later.
         var verificationUrl = ForgotPasswordHandler.AppendToken(_messaging.LinkBaseUrls.Verification, rawVerificationToken);
         await messageSender.SendEmailVerificationAsync(gameId, email, email, verificationUrl, ct);
+
+        activity?.SetTag("sodalis.player.id", player.PlayerId);
+
+        logger.LogInformation(
+            "Player registered playerId={PlayerId} gameId={GameId} email={Email}",
+            player.PlayerId, gameId, email);
+        IdentityTelemetry.RegistrationsTotal.Add(1,
+            new KeyValuePair<string, object?>("outcome", "success"));
 
         var response = new LoginResponse(
             AccessToken: accessToken.Value,

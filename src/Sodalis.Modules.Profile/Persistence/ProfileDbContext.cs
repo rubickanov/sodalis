@@ -20,8 +20,10 @@ public sealed class ProfileDbContext(
 
         modelBuilder.Entity<ProfileEntity>(e =>
         {
-            e.HasKey(p => p.PlayerId);
-            e.HasIndex(p => p.GameId);
+            // Composite PK lets one player have a profile per game and gives a
+            // unique constraint that turns the read-then-insert race in
+            // GetMyProfileHandler into a catchable DbUpdateException.
+            e.HasKey(p => new { p.PlayerId, p.GameId });
 
             e.Property(p => p.DisplayName).HasMaxLength(64);
             e.Property(p => p.AvatarUrl).HasMaxLength(2048);

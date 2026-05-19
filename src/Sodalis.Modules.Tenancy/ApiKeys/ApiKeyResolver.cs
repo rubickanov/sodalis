@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Sodalis.Modules.Tenancy.Persistence;
 
 namespace Sodalis.Modules.Tenancy.ApiKeys;
 
-public sealed class ApiKeyResolver(TenancyDbContext db, IMemoryCache cache)
+public sealed class ApiKeyResolver(
+    TenancyDbContext db,
+    IMemoryCache cache,
+    ILogger<ApiKeyResolver> logger)
 {
     // Short TTL because revocations need to take effect quickly.
     // Trade-off: longer TTL = fewer DB hits but staler revocations.
@@ -17,7 +21,13 @@ public sealed class ApiKeyResolver(TenancyDbContext db, IMemoryCache cache)
         var cacheKey = $"apikey:{hash}";
 
         if (cache.TryGetValue<Guid?>(cacheKey, out var cached))
+        {
+            logger.LogDebug("API key resolved from cache ({Outcome})", cached is null ? "miss" : "hit");
+            TenancyTelemetry.ApiKeyResolutionTotal.Add(1,
+                new KeyValuePair<string, object?>("source", "cache"),
+                new KeyValuePair<string, object?>("outcome", cached is null ? "miss" : "hit"));
             return cached;
+        }
 
         var row = await db.GameApiKeys
             .AsNoTracking()
@@ -29,6 +39,12 @@ public sealed class ApiKeyResolver(TenancyDbContext db, IMemoryCache cache)
             .FirstOrDefaultAsync(ct);
 
         cache.Set(cacheKey, row, CacheTtl);
+
+        logger.LogDebug("API key resolved from db ({Outcome})", row is null ? "miss" : "hit");
+        TenancyTelemetry.ApiKeyResolutionTotal.Add(1,
+            new KeyValuePair<string, object?>("source", "db"),
+            new KeyValuePair<string, object?>("outcome", row is null ? "miss" : "hit"));
+
         return row;
     }
 

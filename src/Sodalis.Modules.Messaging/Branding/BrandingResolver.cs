@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sodalis.Modules.Messaging.Domain;
 using Sodalis.Modules.Messaging.Persistence;
@@ -10,7 +11,8 @@ namespace Sodalis.Modules.Messaging.Branding;
 public sealed class BrandingResolver(
     MessagingDbContext db,
     IMemoryCache cache,
-    IOptions<MessagingSettings> options)
+    IOptions<MessagingSettings> options,
+    ILogger<BrandingResolver> logger)
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
     private readonly MessagingSettings _settings = options.Value;
@@ -24,6 +26,7 @@ public sealed class BrandingResolver(
         var cacheKey = $"branding:{gameId}";
         if (cache.TryGetValue<GameEmailBranding?>(cacheKey, out var cached))
         {
+            logger.LogDebug("Branding cache hit for game {GameId}", gameId);
             return Merge(cached);
         }
 
@@ -32,6 +35,8 @@ public sealed class BrandingResolver(
             .FirstOrDefaultAsync(b => b.GameId == gameId, ct);
 
         cache.Set(cacheKey, row, CacheTtl);
+        logger.LogDebug("Branding cache miss for game {GameId} (db {Outcome})",
+            gameId, row is null ? "default" : "row");
         return Merge(row);
     }
 

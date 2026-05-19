@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 using Sodalis.Core;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.Features.Login;
@@ -25,14 +27,27 @@ public static class LogoutAllEndpoint
         ClaimsPrincipal user,
         RefreshTokenService refreshTokens,
         IGameContext gameContext,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.logout_all");
+        activity?.SetTag("sodalis.game.id", gameContext.GameId);
+
+        var logger = loggerFactory.CreateLogger("Sodalis.Modules.Identity.Features.LogoutAll");
+
         if (!RequestContext.TryResolvePlayer(user, gameContext, out var playerId))
         {
+            logger.LogWarning("LogoutAll rejected: malformed token");
+            activity?.SetStatus(ActivityStatusCode.Error, "malformed_token");
             return Results.Problem("Malformed token.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        await refreshTokens.RevokeAllForPlayerAsync(playerId, gameContext.GameId, ct);
+        var count = await refreshTokens.RevokeAllForPlayerAsync(playerId, gameContext.GameId, ct);
+        activity?.SetTag("sodalis.player.id", playerId);
+        activity?.SetTag("sodalis.refresh.revoked_count", count);
+        logger.LogInformation(
+            "LogoutAll: revoked {Count} refresh token(s) for player {PlayerId}",
+            count, playerId);
         return Results.NoContent();
     }
 }

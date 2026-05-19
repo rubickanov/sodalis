@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Sodalis.Modules.Messaging.Branding;
@@ -18,7 +19,7 @@ public class BrandingResolverTests
     public async Task Resolve_UnknownGame_ReturnsDefaultsAndSmtpFrom()
     {
         await using var db = CreateDb();
-        var resolver = new BrandingResolver(db, NewCache(), Settings());
+        var resolver = new BrandingResolver(db, NewCache(), Settings(), NullLogger<BrandingResolver>.Instance);
 
         var result = await resolver.ResolveAsync(GameWithoutOverride, CancellationToken.None);
 
@@ -49,7 +50,7 @@ public class BrandingResolverTests
         });
         await db.SaveChangesAsync();
 
-        var resolver = new BrandingResolver(db, NewCache(), Settings());
+        var resolver = new BrandingResolver(db, NewCache(), Settings(), NullLogger<BrandingResolver>.Instance);
         var result = await resolver.ResolveAsync(GameWithOverride, CancellationToken.None);
 
         result.BrandName.ShouldBe("AcmeGame");
@@ -72,7 +73,7 @@ public class BrandingResolverTests
         });
         await db.SaveChangesAsync();
 
-        var resolver = new BrandingResolver(db, NewCache(), Settings());
+        var resolver = new BrandingResolver(db, NewCache(), Settings(), NullLogger<BrandingResolver>.Instance);
         var result = await resolver.ResolveAsync(GameWithOverride, CancellationToken.None);
 
         result.FromAddress.ShouldBe("noreply@example.test");
@@ -90,7 +91,7 @@ public class BrandingResolverTests
         });
         await db.SaveChangesAsync();
 
-        var resolver = new BrandingResolver(db, NewCache(), Settings());
+        var resolver = new BrandingResolver(db, NewCache(), Settings(), NullLogger<BrandingResolver>.Instance);
         var result = await resolver.ResolveAsync(GameWithOverride, CancellationToken.None);
 
         result.BrandName.ShouldBe("AcmeGame");
@@ -113,7 +114,7 @@ public class BrandingResolverTests
         });
         await db.SaveChangesAsync();
 
-        var resolver = new BrandingResolver(db, NewCache(), Settings());
+        var resolver = new BrandingResolver(db, NewCache(), Settings(), NullLogger<BrandingResolver>.Instance);
         var result = await resolver.ResolveAsync(GameWithOverride, CancellationToken.None);
 
         result.BrandName.ShouldBe("DefaultBrand");
@@ -131,7 +132,7 @@ public class BrandingResolverTests
         await db.SaveChangesAsync();
 
         var cache = NewCache();
-        var resolver = new BrandingResolver(db, cache, Settings());
+        var resolver = new BrandingResolver(db, cache, Settings(), NullLogger<BrandingResolver>.Instance);
 
         var first = await resolver.ResolveAsync(GameWithOverride, CancellationToken.None);
         first.BrandName.ShouldBe("AcmeGame");
@@ -151,7 +152,7 @@ public class BrandingResolverTests
     {
         await using var db = CreateDb();
         var cache = NewCache();
-        var resolver = new BrandingResolver(db, cache, Settings());
+        var resolver = new BrandingResolver(db, cache, Settings(), NullLogger<BrandingResolver>.Instance);
 
         var first = await resolver.ResolveAsync(GameWithoutOverride, CancellationToken.None);
         first.BrandName.ShouldBe("DefaultBrand");

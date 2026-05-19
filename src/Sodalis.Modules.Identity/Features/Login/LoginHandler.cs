@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.AuthProviders;
 using Sodalis.Modules.Identity.Domain;
@@ -10,7 +12,8 @@ public sealed class LoginHandler(
     IdentityDbContext db,
     IEnumerable<IAuthProvider> providers,
     JwtIssuer jwtIssuer,
-    RefreshTokenService refreshTokens)
+    RefreshTokenService refreshTokens,
+    ILogger<LoginHandler> logger)
 {
     public async Task<LoginResult> HandleAsync(
         LoginRequest request,
@@ -19,9 +22,19 @@ public sealed class LoginHandler(
         string? ipAddress,
         CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.login");
+        activity?.SetTag("sodalis.game.id", gameId);
+        activity?.SetTag("sodalis.auth.provider", request.Provider);
+
         var provider = providers.FirstOrDefault(p => p.ProviderId == request.Provider);
         if (provider is null)
         {
+            logger.LogInformation("Login failed: unknown auth provider {Provider}", request.Provider);
+            IdentityTelemetry.LoginTotal.Add(1,
+                new KeyValuePair<string, object?>("provider", request.Provider),
+                new KeyValuePair<string, object?>("outcome", "failure"),
+                new KeyValuePair<string, object?>("reason", "unknown_provider"));
+            activity?.SetStatus(ActivityStatusCode.Error, "unknown_provider");
             return LoginResult.Failed($"Unknown auth provider '{request.Provider}'.");
         }
 
@@ -30,6 +43,12 @@ public sealed class LoginHandler(
 
         if (!auth.Success || auth.ExternalId is null)
         {
+            logger.LogInformation("Login failed: provider {Provider} rejected credentials", request.Provider);
+            IdentityTelemetry.LoginTotal.Add(1,
+                new KeyValuePair<string, object?>("provider", request.Provider),
+                new KeyValuePair<string, object?>("outcome", "failure"),
+                new KeyValuePair<string, object?>("reason", "bad_credentials"));
+            activity?.SetStatus(ActivityStatusCode.Error, "bad_credentials");
             return LoginResult.Failed(auth.FailureReason ?? "Authentication failed.");
         }
 
@@ -53,6 +72,12 @@ public sealed class LoginHandler(
             // otherwise the audit log shows a successful login for a banned player.
             if (player.IsBanned)
             {
+                logger.LogWarning("Login rejected: banned player {PlayerId} via {Provider}", player.PlayerId, request.Provider);
+                IdentityTelemetry.LoginTotal.Add(1,
+                    new KeyValuePair<string, object?>("provider", request.Provider),
+                    new KeyValuePair<string, object?>("outcome", "failure"),
+                    new KeyValuePair<string, object?>("reason", "banned"));
+                activity?.SetStatus(ActivityStatusCode.Error, "banned");
                 return LoginResult.Failed("Account is banned.");
             }
 
@@ -97,6 +122,16 @@ public sealed class LoginHandler(
             RefreshTokenExpiresIn: (int)(refresh.ExpiresAt - now2).TotalSeconds,
             TokenType: "Bearer",
             Player: new PlayerInfo(player.PlayerId, isNew, linkedProviders));
+
+        activity?.SetTag("sodalis.player.id", player.PlayerId);
+        activity?.SetTag("sodalis.player.is_new", isNew);
+
+        logger.LogInformation(
+            "Login OK player={PlayerId} provider={Provider} isNew={IsNew}",
+            player.PlayerId, request.Provider, isNew);
+        IdentityTelemetry.LoginTotal.Add(1,
+            new KeyValuePair<string, object?>("provider", request.Provider),
+            new KeyValuePair<string, object?>("outcome", "success"));
 
         return LoginResult.Ok(response);
     }

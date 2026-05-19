@@ -1,16 +1,22 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Sodalis.Modules.Identity.AuthProviders;
 using Sodalis.Modules.Identity.Persistence;
 
 namespace Sodalis.Modules.Identity.Features.VerifyEmail;
 
-public sealed class VerifyEmailHandler(IdentityDbContext db)
+public sealed class VerifyEmailHandler(
+    IdentityDbContext db,
+    ILogger<VerifyEmailHandler> logger)
 {
     public async Task<VerifyEmailResult> HandleAsync(VerifyEmailRequest request, CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.verify_email");
+
         var hash = HashToken(request.Token);
         var now = DateTimeOffset.UtcNow;
 
@@ -21,6 +27,10 @@ public sealed class VerifyEmailHandler(IdentityDbContext db)
 
         if (token is null)
         {
+            logger.LogInformation("Email verification failed: invalid or expired token");
+            IdentityTelemetry.EmailVerifiedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "invalid_token"));
+            activity?.SetStatus(ActivityStatusCode.Error, "invalid_token");
             return VerifyEmailResult.Failed("Invalid or expired token.");
         }
 
@@ -30,12 +40,20 @@ public sealed class VerifyEmailHandler(IdentityDbContext db)
 
         if (identity?.Metadata is null)
         {
+            logger.LogWarning("Email verification: token valid but identity missing for player {PlayerId}", token.PlayerId);
+            IdentityTelemetry.EmailVerifiedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "identity_missing"));
+            activity?.SetStatus(ActivityStatusCode.Error, "identity_missing");
             return VerifyEmailResult.Failed("Invalid or expired token.");
         }
 
         var meta = JsonSerializer.Deserialize<EmailMetadata>(identity.Metadata);
         if (meta is null)
         {
+            logger.LogWarning("Email verification: malformed metadata for player {PlayerId}", token.PlayerId);
+            IdentityTelemetry.EmailVerifiedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "metadata_corrupt"));
+            activity?.SetStatus(ActivityStatusCode.Error, "metadata_corrupt");
             return VerifyEmailResult.Failed("Invalid or expired token.");
         }
 
@@ -48,6 +66,11 @@ public sealed class VerifyEmailHandler(IdentityDbContext db)
         token.UsedAt = now;
 
         await db.SaveChangesAsync(ct);
+
+        activity?.SetTag("sodalis.player.id", token.PlayerId);
+        logger.LogInformation("Email verified for player {PlayerId}", token.PlayerId);
+        IdentityTelemetry.EmailVerifiedTotal.Add(1, new KeyValuePair<string, object?>("outcome", "ok"));
+
         return VerifyEmailResult.Ok();
     }
 

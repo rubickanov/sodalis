@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,7 @@ public sealed class RefreshTokenService(
         });
         await db.SaveChangesAsync(ct);
 
+        IdentityTelemetry.TokenIssuanceTotal.Add(1, new KeyValuePair<string, object?>("kind", "refresh"));
         return new IssuedRefreshToken(raw, expires);
     }
 
@@ -48,6 +50,9 @@ public sealed class RefreshTokenService(
         string? ipAddress,
         CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.refresh_token.rotate");
+        activity?.SetTag("sodalis.game.id", gameId);
+
         var hash = HashToken(rawToken);
         var now = DateTimeOffset.UtcNow;
         var newRaw = GenerateRawToken();
@@ -79,15 +84,19 @@ public sealed class RefreshTokenService(
 
             if (existing is null)
             {
+                activity?.SetTag("sodalis.outcome", "invalid_unknown");
                 return RotateResult.Invalid("Unknown refresh token.");
             }
 
             if (existing.ReplacedByHash is not null || existing.RevokedAt is not null)
             {
                 await RevokeChainAsync(existing, ct);
+                activity?.SetTag("sodalis.outcome", "reused");
+                activity?.SetTag("sodalis.player.id", existing.PlayerId);
                 return RotateResult.Reused("Refresh token reuse detected; session revoked.");
             }
 
+            activity?.SetTag("sodalis.outcome", "expired");
             return RotateResult.Invalid("Refresh token expired.");
         }
 
@@ -102,6 +111,7 @@ public sealed class RefreshTokenService(
 
         if (playerId is null)
         {
+            activity?.SetTag("sodalis.outcome", "vanished");
             return RotateResult.Invalid("Refresh token vanished between rotation and read.");
         }
 
@@ -117,6 +127,9 @@ public sealed class RefreshTokenService(
         });
 
         await db.SaveChangesAsync(ct);
+        activity?.SetTag("sodalis.outcome", "ok");
+        activity?.SetTag("sodalis.player.id", playerId.Value);
+        IdentityTelemetry.TokenIssuanceTotal.Add(1, new KeyValuePair<string, object?>("kind", "refresh"));
         return RotateResult.Ok(playerId.Value, newRaw, newExpires);
     }
 
@@ -148,15 +161,19 @@ public sealed class RefreshTokenService(
     {
         var now = DateTimeOffset.UtcNow;
         var current = start;
+        int chainLength = 0;
         while (current is not null)
         {
             current.RevokedAt ??= now;
+            chainLength++;
             if (current.ReplacedByHash is null) break;
             current = await db.RefreshTokens
                 .FirstOrDefaultAsync(t => t.TokenHash == current.ReplacedByHash, ct);
         }
 
         await db.SaveChangesAsync(ct);
+        Activity.Current?.AddEvent(new ActivityEvent("refresh_chain_revoked",
+            tags: new ActivityTagsCollection { { "chain_length", chainLength } }));
     }
 
     private static string GenerateRawToken()

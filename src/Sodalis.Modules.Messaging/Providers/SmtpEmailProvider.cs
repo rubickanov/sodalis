@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
@@ -23,10 +24,18 @@ public sealed class SmtpEmailProvider(
     {
         if (string.IsNullOrWhiteSpace(_smtp.Host))
         {
-            // Misconfiguration is the caller's problem to fix, but don't crash the request.
-            logger.LogWarning("SMTP host is not configured; email to {Recipient} dropped.", message.ToAddress);
+            // Production fail-fast happens in MessagingModule.RegisterServices.
+            // Reaching here means Development/Test with no SMTP — silent dev no-op.
+            logger.LogDebug("SMTP host is not configured; email to {Recipient} dropped.", message.ToAddress);
             return;
         }
+
+        using var activity = MessagingTelemetry.ActivitySource.StartActivity(
+            "messaging.smtp.send",
+            ActivityKind.Client);
+        activity?.SetTag("net.peer.name", _smtp.Host);
+        activity?.SetTag("net.peer.port", _smtp.Port);
+        activity?.SetTag("messaging.system", "smtp");
 
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(message.FromName, message.FromAddress));
@@ -48,14 +57,22 @@ public sealed class SmtpEmailProvider(
             ? SecureSocketOptions.StartTls
             : SecureSocketOptions.Auto;
 
-        await client.ConnectAsync(_smtp.Host, _smtp.Port, socketOptions, ct);
-
-        if (!string.IsNullOrWhiteSpace(_smtp.Username))
+        try
         {
-            await client.AuthenticateAsync(_smtp.Username, _smtp.Password, ct);
-        }
+            await client.ConnectAsync(_smtp.Host, _smtp.Port, socketOptions, ct);
 
-        await client.SendAsync(mime, ct);
-        await client.DisconnectAsync(quit: true, ct);
+            if (!string.IsNullOrWhiteSpace(_smtp.Username))
+            {
+                await client.AuthenticateAsync(_smtp.Username, _smtp.Password, ct);
+            }
+
+            await client.SendAsync(mime, ct);
+            await client.DisconnectAsync(quit: true, ct);
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+            throw;
+        }
     }
 }

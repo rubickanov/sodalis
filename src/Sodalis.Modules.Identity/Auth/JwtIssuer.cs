@@ -45,6 +45,7 @@ public sealed class JwtIssuer(IOptions<JwtSettings> options)
         };
 
         var token = _handler.CreateToken(descriptor);
+        IdentityTelemetry.TokenIssuanceTotal.Add(1, new KeyValuePair<string, object?>("kind", "access"));
         return new IssuedToken(token, expires);
     }
 }

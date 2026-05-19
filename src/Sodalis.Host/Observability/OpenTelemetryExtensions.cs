@@ -28,6 +28,7 @@ internal static class OpenTelemetryExtensions
                 serviceInstanceId: Environment.MachineName))
             .WithTracing(t =>
             {
+                t.AddSource(HostTelemetry.Name);
                 t.AddAspNetCoreInstrumentation(o =>
                 {
                     // Health probes hammer the endpoint — keep them out of traces.

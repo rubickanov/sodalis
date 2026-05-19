@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Sodalis.Modules.Identity.Auth;
 using Sodalis.Modules.Identity.AuthProviders;
 using Sodalis.Modules.Identity.Features.ForgotPassword;
@@ -12,13 +14,17 @@ public sealed class ResetPasswordHandler(
     IdentityDbContext db,
     PasswordHasher hasher,
     RefreshTokenService refreshTokens,
-    IMessageSender messageSender)
+    IMessageSender messageSender,
+    ILogger<ResetPasswordHandler> logger)
 {
     public async Task<ResetPasswordResult> HandleAsync(
         ResetPasswordRequest request,
         Guid gameId,
         CancellationToken ct)
     {
+        using var activity = IdentityTelemetry.ActivitySource.StartActivity("identity.password_reset_complete");
+        activity?.SetTag("sodalis.game.id", gameId);
+
         var hash = ForgotPasswordHandler.HashToken(request.Token);
         var now = DateTimeOffset.UtcNow;
 
@@ -29,6 +35,10 @@ public sealed class ResetPasswordHandler(
 
         if (token is null)
         {
+            logger.LogInformation("Password reset complete failed: invalid or expired token");
+            IdentityTelemetry.PasswordResetCompletedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "invalid_token"));
+            activity?.SetStatus(ActivityStatusCode.Error, "invalid_token");
             return ResetPasswordResult.Failed("Invalid or expired token.");
         }
 
@@ -38,12 +48,20 @@ public sealed class ResetPasswordHandler(
 
         if (identity?.Metadata is null)
         {
+            logger.LogWarning("Password reset complete failed: identity missing for player {PlayerId}", token.PlayerId);
+            IdentityTelemetry.PasswordResetCompletedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "identity_missing"));
+            activity?.SetStatus(ActivityStatusCode.Error, "identity_missing");
             return ResetPasswordResult.Failed("Invalid or expired token.");
         }
 
         var meta = JsonSerializer.Deserialize<EmailMetadata>(identity.Metadata);
         if (meta is null)
         {
+            logger.LogWarning("Password reset complete failed: malformed metadata for player {PlayerId}", token.PlayerId);
+            IdentityTelemetry.PasswordResetCompletedTotal.Add(1,
+                new KeyValuePair<string, object?>("outcome", "metadata_corrupt"));
+            activity?.SetStatus(ActivityStatusCode.Error, "metadata_corrupt");
             return ResetPasswordResult.Failed("Invalid or expired token.");
         }
 
@@ -60,6 +78,11 @@ public sealed class ResetPasswordHandler(
         // Notify the user that their password just changed.
         await messageSender.SendPasswordChangedNotificationAsync(
             gameId, identity.ExternalId, identity.ExternalId, now, ct);
+
+        activity?.SetTag("sodalis.player.id", token.PlayerId);
+        logger.LogInformation("Password reset completed for player {PlayerId}", token.PlayerId);
+        IdentityTelemetry.PasswordResetCompletedTotal.Add(1,
+            new KeyValuePair<string, object?>("outcome", "ok"));
 
         return ResetPasswordResult.Ok();
     }

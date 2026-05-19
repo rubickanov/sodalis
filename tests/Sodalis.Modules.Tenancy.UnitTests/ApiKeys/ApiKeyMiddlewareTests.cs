@@ -148,6 +148,7 @@ public class ApiKeyMiddlewareTests
             var dbName = $"middleware-{Guid.NewGuid()}";
 
             var services = new ServiceCollection();
+            services.AddLogging();
             services.AddDbContext<TenancyDbContext>(o => o.UseInMemoryDatabase(dbName));
             services.AddMemoryCache();
             services.AddScoped<ApiKeyResolver>();
